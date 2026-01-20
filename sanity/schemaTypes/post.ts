@@ -5,7 +5,13 @@ export const post = defineType({
   title: "Post",
   type: "document",
   fields: [
-    defineField({ name: "title", title: "Title", type: "string", validation: (r) => r.required() }),
+    defineField({
+      name: "title",
+      title: "Title",
+      type: "string",
+      validation: (r) => r.required(),
+    }),
+
     defineField({
       name: "slug",
       title: "Slug",
@@ -13,29 +19,40 @@ export const post = defineType({
       options: { source: "title", maxLength: 96 },
       validation: (r) => r.required(),
     }),
-    defineField({ name: "publishedAt", title: "Published at", type: "datetime" }),
-    defineField({ name: "excerpt", title: "Excerpt", type: "text", rows: 3 }),
-    defineField({ name: "coverImage", title: "Cover image", type: "image", options: { hotspot: true } }),
+
     defineField({
-      name: "trip",
-      title: "Trip",
-      type: "reference",
-      to: [{ type: "trip" }],
+      name: "publishedAt",
+      title: "Published at",
+      type: "datetime",
+      validation: (r) => r.required(),
     }),
+
+    defineField({
+      name: "country",
+      title: "Country",
+      type: "string",
+      description: "Country where this post takes place",
+      validation: (r) => r.required(),
+    }),
+
+    defineField({
+      name: "excerpt",
+      title: "Excerpt",
+      type: "text",
+    }),
+
+    defineField({
+      name: "coverImage",
+      title: "Cover image",
+      type: "image",
+      options: { hotspot: true },
+    }),
+
     defineField({
       name: "body",
       title: "Body",
       type: "array",
-      of: [
-        { type: "block" },
-        { type: "image", options: { hotspot: true } },
-      ],
-    }),
-    defineField({
-      name: "gallery",
-      title: "Gallery",
-      type: "array",
-      of: [{ type: "image", options: { hotspot: true } }],
+      of: [{ type: "block" }],
     }),
   ],
 });
