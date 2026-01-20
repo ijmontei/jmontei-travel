@@ -6,7 +6,8 @@ import { urlForImage } from "@/lib/sanity.image";
 import { PortableTextRenderer } from "@/components/PortableTextRenderer";
 
 type PageProps = {
-  params: { slug: string };
+  // In your deployment, Next is passing params as a Promise
+  params: Promise<{ slug: string }>;
 };
 
 const POST_BY_SLUG_QUERY = /* groq */ `
@@ -24,7 +25,7 @@ const POST_BY_SLUG_QUERY = /* groq */ `
 `;
 
 export default async function PostPage({ params }: PageProps) {
-  const slug = params?.slug;
+  const { slug } = await params;
 
   if (!slug) notFound();
 
