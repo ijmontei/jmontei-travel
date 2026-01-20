@@ -2,17 +2,30 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { sanityClient } from "@/lib/sanity.client";
-import { POST_BY_SLUG_QUERY } from "@/lib/sanity.queries";
 import { urlForImage } from "@/lib/sanity.image";
 import { PortableTextRenderer } from "@/components/PortableTextRenderer";
 
-
 type PageProps = {
-  params: { slug: string };
+  // In your deployment, Next is passing params as a Promise
+  params: Promise<{ slug: string }>;
 };
 
+const POST_BY_SLUG_QUERY = /* groq */ `
+*[_type == "post" && slug.current == $slug][0]{
+  _id,
+  title,
+  "slug": slug.current,
+  publishedAt,
+  excerpt,
+  coverImage,
+  country,
+  body,
+  gallery
+}
+`;
+
 export default async function PostPage({ params }: PageProps) {
-  const slug = params?.slug;
+  const { slug } = await params;
 
   if (!slug) notFound();
 
@@ -37,16 +50,16 @@ export default async function PostPage({ params }: PageProps) {
         </div>
 
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">{post.title}</h1>
-        {post.excerpt && <p className="mt-3 text-zinc-600 leading-relaxed">{post.excerpt}</p>}
+        {post.excerpt ? <p className="mt-3 text-zinc-600 leading-relaxed">{post.excerpt}</p> : null}
       </div>
 
-      {coverUrl && (
+      {coverUrl ? (
         <div className="mb-8 overflow-hidden rounded-2xl border bg-zinc-50">
           <div className="relative aspect-[16/9]">
             <Image src={coverUrl} alt={post.title} fill className="object-cover" sizes="100vw" />
           </div>
         </div>
-      )}
+      ) : null}
 
       <PortableTextRenderer value={post.body} />
 

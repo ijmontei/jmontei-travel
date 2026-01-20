@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: 28 100% 97%;       /* warm cream */
+  --card: 30 60% 96%;
+  --text: 20 14% 12%;      /* warm charcoal */
+  --muted: 24 10% 45%;
+
+  --accent: 15 75% 55%;    /* terracotta */
+  --accent2: 85 25% 40%;   /* olive */
+  --border: 24 18% 86%;
 }
 
 @theme inline {
