@@ -60,16 +60,13 @@ export function HomeView({ posts }: { posts: Post[] }) {
   }, [posts]);
 
   return (
-    <main className="min-h-screen bg-[hsl(var(--bg))] text-[hsl(var(--text))]">
+    <main className="min-h-screen text-[hsl(var(--text))]">
       <div className="mx-auto max-w-5xl px-5 py-10">
         <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <h2 className="text-xl font-semibold tracking-tight text-[hsl(var(--text))]">
-              Posts
+            Stories and photos from the road.
             </h2>
-            <p className="mt-2 text-sm text-[hsl(var(--muted))]">
-              Browse newest first or explore by country.
-            </p>
           </div>
 
           <ModeToggle mode={mode} setMode={setMode} />
