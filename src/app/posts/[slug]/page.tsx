@@ -6,7 +6,7 @@ import { urlForImage } from "@/lib/sanity.image";
 import { PortableTextRenderer } from "@/components/PortableTextRenderer";
 
 type PageProps = {
-  // In your deployment, Next is passing params as a Promise
+  // Your deployment showed params is a Promise — this is the critical fix.
   params: Promise<{ slug: string }>;
 };
 

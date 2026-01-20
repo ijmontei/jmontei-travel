@@ -19,7 +19,7 @@ export function PostCard(props: PostCardProps) {
     : null;
 
   return (
-    <Link href={`/${slug}`} className="block group">
+    <Link href={`/posts/${slug}`} className="block group">
       <div className="rounded-2xl border border-[hsl(var(--border))] overflow-hidden bg-[hsl(var(--card))]">
         {imageUrl && (
           <div className="relative aspect-[16/9]">
