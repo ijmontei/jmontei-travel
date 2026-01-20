@@ -2,46 +2,55 @@ import Image from "next/image";
 import { sanityClient } from "@/lib/sanity.client";
 import { POST_BY_SLUG_QUERY } from "@/lib/sanity.queries";
 import { urlForImage } from "@/lib/sanity.image";
+import { PortableTextRenderer } from "@/components/PortableTextRenderer";
 
 export default async function PostPage({ params }: { params: { slug: string } }) {
   const post = await sanityClient.fetch(POST_BY_SLUG_QUERY, { slug: params.slug });
 
-  if (!post) {
-    return (
-      <div className="py-16">
-        <h1 className="text-2xl font-semibold">Post not found</h1>
-      </div>
-    );
-  }
+  if (!post) return <div>Not found.</div>;
 
   const coverUrl = post.coverImage
-    ? urlForImage(post.coverImage).width(2000).height(1100).fit("crop").url()
+    ? urlForImage(post.coverImage).width(1800).height(900).fit("crop").auto("format").url()
     : null;
 
   return (
-    <article className="mx-auto max-w-3xl px-5 py-10">
-      <div className="flex flex-wrap gap-2 text-sm text-[hsl(var(--muted))]">
-        {post.country && (
-          <span className="rounded-full bg-white/70 px-3 py-1 border border-[hsl(var(--border))]">
-            {post.country}
-          </span>
-        )}
-        {post.publishedAt && <span>{new Date(post.publishedAt).toLocaleDateString()}</span>}
+    <article className="max-w-3xl">
+      <div className="mb-6">
+        <div className="text-sm text-zinc-500">
+          {post.trip?.title ? <span>{post.trip.title} · </span> : null}
+          {post.publishedAt ? <span>{new Date(post.publishedAt).toLocaleDateString()}</span> : null}
+        </div>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">{post.title}</h1>
+        {post.excerpt && <p className="mt-3 text-zinc-600 leading-relaxed">{post.excerpt}</p>}
       </div>
 
-      <h1 className="mt-4 text-3xl font-semibold tracking-tight">{post.title}</h1>
-
-      {post.excerpt && (
-        <p className="mt-3 text-[hsl(var(--muted))] leading-relaxed">{post.excerpt}</p>
-      )}
-
       {coverUrl && (
-        <div className="mt-8 relative aspect-[16/9] overflow-hidden rounded-2xl border border-[hsl(var(--border))]">
-          <Image src={coverUrl} alt={post.title} fill className="object-cover" sizes="100vw" />
+        <div className="mb-8 overflow-hidden rounded-2xl border bg-zinc-50">
+          <div className="relative aspect-[16/9]">
+            <Image src={coverUrl} alt={post.title} fill className="object-cover" sizes="100vw" />
+          </div>
         </div>
       )}
 
-      {/* TODO: render body (Portable Text) */}
+      <PortableTextRenderer value={post.body} />
+
+      {post.gallery?.length ? (
+        <section className="mt-12">
+          <h2 className="text-xl font-semibold tracking-tight">Gallery</h2>
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {post.gallery.map((img: any, idx: number) => {
+              const url = urlForImage(img).width(1200).fit("max").auto("format").url();
+              return (
+                <div key={idx} className="overflow-hidden rounded-2xl border bg-zinc-50">
+                  <div className="relative aspect-[4/3]">
+                    <Image src={url} alt="" fill className="object-cover" sizes="(max-width: 640px) 100vw, 50vw" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
     </article>
   );
 }

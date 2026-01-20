@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { urlForImage } from "@/lib/sanity.image";
+import Link from "next/link";
 
 type PostCardProps = {
   title: string;
@@ -18,7 +19,7 @@ export function PostCard(props: PostCardProps) {
     : null;
 
   return (
-    <a href={`/posts/${slug}`} className="block group">
+    <Link href={`/${slug}`} className="block group">
       <div className="rounded-2xl border border-[hsl(var(--border))] overflow-hidden bg-[hsl(var(--card))]">
         {imageUrl && (
           <div className="relative aspect-[16/9]">
@@ -51,6 +52,6 @@ export function PostCard(props: PostCardProps) {
           )}
         </div>
       </div>
-    </a>
+      </Link>
   );
 }
