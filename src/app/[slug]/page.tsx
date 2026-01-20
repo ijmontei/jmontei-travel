@@ -19,7 +19,11 @@ export default async function PostPage({ params }: PageProps) {
     console.error("PostPage: missing or invalid params.slug", { params });
     notFound();
   }
-
+  console.log("SANITY ENV", {
+    slug: params?.slug,
+    projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID ?? process.env.SANITY_PROJECT_ID,
+    dataset: process.env.NEXT_PUBLIC_SANITY_DATASET ?? process.env.SANITY_DATASET,
+  });
   // Pass slug param correctly
   const post = await sanityClient.fetch(POST_BY_SLUG_QUERY, { slug });
 
