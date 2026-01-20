@@ -31,7 +31,6 @@ export const post = defineType({
       name: "country",
       title: "Country",
       type: "string",
-      description: "Country where this post takes place",
       validation: (r) => r.required(),
     }),
 
@@ -39,6 +38,7 @@ export const post = defineType({
       name: "excerpt",
       title: "Excerpt",
       type: "text",
+      rows: 3,
     }),
 
     defineField({
@@ -53,6 +53,13 @@ export const post = defineType({
       title: "Body",
       type: "array",
       of: [{ type: "block" }],
+    }),
+
+    defineField({
+      name: "gallery",
+      title: "Gallery",
+      type: "array",
+      of: [{ type: "image", options: { hotspot: true } }],
     }),
   ],
 });
