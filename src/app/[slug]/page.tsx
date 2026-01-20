@@ -17,7 +17,7 @@ export default async function PostPage({ params }: { params: { slug: string } })
     <article className="max-w-3xl">
       <div className="mb-6">
         <div className="text-sm text-zinc-500">
-          {post.trip?.title ? <span>{post.trip.title} · </span> : null}
+        {post.country ? <span>{post.country} · </span> : null}
           {post.publishedAt ? <span>{new Date(post.publishedAt).toLocaleDateString()}</span> : null}
         </div>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">{post.title}</h1>
