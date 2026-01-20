@@ -34,7 +34,6 @@ export function PostCard(props: PostCardProps) {
           "hover:border-black/15",
         ].join(" ")}
       >
-        {/* Image (fixed aspect so it never “blows up”) */}
         {imageUrl ? (
           <div className="relative aspect-[16/9] overflow-hidden">
             <Image
@@ -45,12 +44,10 @@ export function PostCard(props: PostCardProps) {
               className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
               priority={false}
             />
-            {/* soft overlay */}
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-black/0 to-black/0 opacity-70 transition-opacity duration-300 group-hover:opacity-90" />
           </div>
         ) : null}
 
-        {/* Content */}
         <div className="p-6">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-zinc-500">
             {country ? (
@@ -86,7 +83,6 @@ export function PostCard(props: PostCardProps) {
           </div>
         </div>
 
-        {/* subtle “shine” on hover */}
         <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
           <div className="absolute -inset-x-24 -inset-y-24 rotate-12 bg-gradient-to-r from-white/0 via-white/25 to-white/0 blur-2xl" />
         </div>
