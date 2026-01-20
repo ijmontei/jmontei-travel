@@ -11,9 +11,11 @@ type PageProps = {
 };
 
 export default async function PostPage({ params }: PageProps) {
-    return (
-      <div style={{ padding: 40 }}>
-        ROUTE HIT ✅ slug = {params?.slug}
-      </div>
-    );
-  }
+  const slug = params?.slug;
+
+  const post = await sanityClient.fetch(POST_BY_SLUG_QUERY, { slug });
+
+    console.log("POST PAGE DEBUG", { slug, found: !!post });
+
+    if (!post) notFound();
+}
