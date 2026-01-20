@@ -23,7 +23,10 @@ export default async function PostPage({ params }: PageProps) {
   // Pass slug param correctly
   const post = await sanityClient.fetch(POST_BY_SLUG_QUERY, { slug });
 
-  if (!post) notFound();
+  if (!post) {
+    console.error("Post not found for slug:", slug);
+    notFound();
+  }
 
   const coverUrl = post.coverImage
     ? urlForImage(post.coverImage).width(1800).height(900).fit("crop").auto("format").url()
