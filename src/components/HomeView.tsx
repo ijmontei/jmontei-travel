@@ -26,7 +26,6 @@ export function HomeView({ posts }: { posts: Post[] }) {
       <div className="mx-auto max-w-5xl px-5 py-10">
         <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight">A+J Travels</h1>
             <p className="mt-2 text-sm text-[hsl(var(--muted))]">
               Stories and photos from the road.
             </p>

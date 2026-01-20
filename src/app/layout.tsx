@@ -12,7 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-white text-zinc-900">
         <div className="mx-auto max-w-4xl px-5">
           <header className="py-10 flex items-center justify-between">
-            <a href="/" className="font-semibold tracking-tight text-xl">J & A</a>
+            <a href="/" className="font-semibold tracking-tight text-xl">Jovan & Amanda's Travels</a>
           </header>
 
           <main className="pb-20">{children}</main>
