@@ -13,9 +13,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="mx-auto max-w-4xl px-5">
           <header className="py-10 flex items-center justify-between">
             <a href="/" className="font-semibold tracking-tight text-xl">J & A</a>
-            <nav className="flex gap-6 text-sm text-zinc-600">
-              <a className="hover:text-zinc-900" href="/trips">Trips</a>
-            </nav>
           </header>
 
           <main className="pb-20">{children}</main>
