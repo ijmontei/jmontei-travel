@@ -52,6 +52,6 @@ export function PostCard(props: PostCardProps) {
           )}
         </div>
       </div>
-      </Link>
+    </Link>
   );
 }
