@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { Post } from "@/lib/types";
 import { PostCard } from "@/components/PostCard";
 import { CountryAccordion } from "@/components/CountryAccordion";
+import { Reveal } from "@/components/Reveal";
 
 function ModeToggle({
   mode,
@@ -75,17 +76,18 @@ export function HomeView({ posts }: { posts: Post[] }) {
         {/* subtle transition between views without libraries */}
         <div className="transition-opacity duration-200">
           {mode === "latest" ? (
-            <section className="grid gap-6 md:grid-cols-2">
-              {posts.map((p) => (
-                <PostCard
-                  key={p._id}
-                  title={p.title}
-                  slug={p.slug}
-                  excerpt={p.excerpt}
-                  coverImage={p.coverImage}
-                  publishedAt={p.publishedAt}
-                  country={p.country}
-                />
+              <section className="grid gap-6 md:grid-cols-2">
+              {posts.map((p, idx) => (
+                <Reveal key={p._id} delayMs={Math.min(idx * 60, 360)}>
+                  <PostCard
+                    title={p.title}
+                    slug={p.slug}
+                    excerpt={p.excerpt}
+                    coverImage={p.coverImage}
+                    publishedAt={p.publishedAt}
+                    country={p.country}
+                  />
+                </Reveal>
               ))}
             </section>
           ) : (

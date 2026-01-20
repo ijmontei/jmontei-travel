@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { Post } from "@/lib/types";
 import { PostCard } from "@/components/PostCard";
+import { Reveal } from "@/components/Reveal";
 
 const FLAG_BY_COUNTRY: Record<string, string> = {
   // ===== Europe =====
@@ -41,6 +42,7 @@ const FLAG_BY_COUNTRY: Record<string, string> = {
   Portugal: "🇵🇹",
   Romania: "🇷🇴",
   Russia: "🇷🇺",
+  "San Marino": "🇸🇲",
   SanMarino: "🇸🇲",
   Serbia: "🇷🇸",
   Slovakia: "🇸🇰",
@@ -55,6 +57,7 @@ const FLAG_BY_COUNTRY: Record<string, string> = {
   Scotland: "🏴",
   Wales: "🏴",
   Vatican: "🇻🇦",
+  "Vatican City": "🇻🇦",
 
   // ===== Asia =====
   Afghanistan: "🇦🇫",
@@ -68,6 +71,7 @@ const FLAG_BY_COUNTRY: Record<string, string> = {
   China: "🇨🇳",
   Georgia: "🇬🇪",
   HongKong: "🇭🇰",
+  "Hong Kong": "🇭🇰",
   India: "🇮🇳",
   Indonesia: "🇮🇩",
   Iran: "🇮🇷",
@@ -107,7 +111,7 @@ const FLAG_BY_COUNTRY: Record<string, string> = {
   Vietnam: "🇻🇳",
   Yemen: "🇾🇪",
 
-  // ===== Americas / Others you already had =====
+  // ===== Americas / Other =====
   USA: "🇺🇸",
   "United States": "🇺🇸",
   Canada: "🇨🇦",
@@ -193,6 +197,7 @@ export function CountryAccordion({
               </div>
             </button>
 
+            {/* Smooth open/close without height measuring */}
             <div
               className={[
                 "grid transition-[grid-template-rows] duration-300 ease-out",
@@ -204,22 +209,21 @@ export function CountryAccordion({
                   <div
                     className={[
                       "pt-2 transition-all duration-300",
-                      isOpen
-                        ? "opacity-100 translate-y-0"
-                        : "opacity-0 -translate-y-1",
+                      isOpen ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1",
                     ].join(" ")}
                   >
                     <div className="grid gap-6 md:grid-cols-2">
-                      {posts.map((p) => (
-                        <PostCard
-                          key={p._id}
-                          title={p.title}
-                          slug={p.slug}
-                          excerpt={p.excerpt}
-                          coverImage={p.coverImage}
-                          publishedAt={p.publishedAt}
-                          country={p.country}
-                        />
+                      {posts.map((p, idx) => (
+                        <Reveal key={p._id} delayMs={Math.min(idx * 60, 360)}>
+                          <PostCard
+                            title={p.title}
+                            slug={p.slug}
+                            excerpt={p.excerpt}
+                            coverImage={p.coverImage}
+                            publishedAt={p.publishedAt}
+                            country={p.country}
+                          />
+                        </Reveal>
                       ))}
                     </div>
                   </div>
