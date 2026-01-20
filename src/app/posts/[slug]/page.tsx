@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { sanityClient } from "@/lib/sanity.client";
 import { POST_BY_SLUG_QUERY } from "@/lib/sanity.queries";
@@ -6,31 +7,17 @@ import { urlForImage } from "@/lib/sanity.image";
 import { PortableTextRenderer } from "@/components/PortableTextRenderer";
 
 type PageProps = {
-  params?: {
-    slug?: string;
-  };
+  params: { slug: string };
 };
 
 export default async function PostPage({ params }: PageProps) {
   const slug = params?.slug;
 
-  // Hard guard: if slug is missing/invalid, do NOT run the GROQ query
-  if (!slug || typeof slug !== "string") {
-    console.error("PostPage: missing or invalid params.slug", { params });
-    notFound();
-  }
-  console.log("SANITY ENV", {
-    slug: params?.slug,
-    projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID ?? process.env.SANITY_PROJECT_ID,
-    dataset: process.env.NEXT_PUBLIC_SANITY_DATASET ?? process.env.SANITY_DATASET,
-  });
-  // Pass slug param correctly
+  if (!slug) notFound();
+
   const post = await sanityClient.fetch(POST_BY_SLUG_QUERY, { slug });
 
-  if (!post) {
-    console.error("Post not found for slug:", slug);
-    notFound();
-  }
+  if (!post) notFound();
 
   const coverUrl = post.coverImage
     ? urlForImage(post.coverImage).width(1800).height(900).fit("crop").auto("format").url()
@@ -39,7 +26,11 @@ export default async function PostPage({ params }: PageProps) {
   return (
     <article className="max-w-3xl">
       <div className="mb-6">
-        <div className="text-sm text-zinc-500">
+        <Link href="/" className="text-sm text-zinc-500 hover:text-zinc-800">
+          ← Back
+        </Link>
+
+        <div className="mt-3 text-sm text-zinc-500">
           {post.country ? <span>{post.country} · </span> : null}
           {post.publishedAt ? <span>{new Date(post.publishedAt).toLocaleDateString()}</span> : null}
         </div>
