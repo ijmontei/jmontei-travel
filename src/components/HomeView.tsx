@@ -14,7 +14,7 @@ function ModeToggle({
   setMode: (m: "latest" | "country") => void;
 }) {
   return (
-    <div className="inline-flex rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-1 shadow-sm">
+    <div className="inline-flex rounded-full border border-[hsl(var(--border))] p-1 shadow-sm">
       <button
         type="button"
         onClick={() => setMode("latest")}
