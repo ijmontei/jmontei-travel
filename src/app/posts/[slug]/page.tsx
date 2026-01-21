@@ -6,6 +6,7 @@ import { urlForImage } from "@/lib/sanity.image";
 import { PortableTextRenderer } from "@/components/PortableTextRenderer";
 import { GalleryCarousel } from "@/components/GalleryCarousel";
 
+
 type PageProps = {
   // Your deployment showed params is a Promise — this is the critical fix.
   params: Promise<{ slug: string }>;
