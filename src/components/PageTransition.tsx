@@ -18,7 +18,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
         transition={
           shouldReduceMotion
             ? { duration: 0 }
-            : { duration: 0.22, ease: "easeOut" }
+            : { duration: 0.4, ease: "easeOut" }
         }
       >
         {children}
