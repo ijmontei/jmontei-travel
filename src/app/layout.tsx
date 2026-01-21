@@ -26,7 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main className="pb-20">{children}</main>
 
           <footer className="py-10 text-sm text-[rgb(var(--muted))] border-t border-[rgb(var(--border))]">
-            © {new Date().getFullYear()} jmontei.com
+          
           </footer>
         </div>
       </body>
