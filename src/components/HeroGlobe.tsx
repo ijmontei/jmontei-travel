@@ -6,6 +6,7 @@ import { feature } from "topojson-client";
 
 type Props = {
   visitedCountries: string[];
+  currentCountry?: string | null; // NEW
 };
 
 function normalizeCountryName(name: string) {
@@ -17,38 +18,38 @@ function normalizeCountryName(name: string) {
 }
 
 const COUNTRY_ALIASES: Record<string, string> = {
-  "usa": "united states of america",
+  usa: "united states of america",
   "united states": "united states of america",
 
-  "uk": "united kingdom",
+  uk: "united kingdom",
   "united kingdom": "united kingdom",
-  "england": "united kingdom",
-  "scotland": "united kingdom",
-  "wales": "united kingdom",
+  england: "united kingdom",
+  scotland: "united kingdom",
+  wales: "united kingdom",
 
-  "czechia": "czech republic",
+  czechia: "czech republic",
   "czech republic": "czech republic",
 
-  "russia": "russian federation",
-  "vietnam": "viet nam",
-  "iran": "iran (islamic republic of)",
-  "syria": "syrian arab republic",
-  "laos": "lao people's democratic republic",
-  "moldova": "moldova, republic of",
-  "brunei": "brunei darussalam",
+  russia: "russian federation",
+  vietnam: "viet nam",
+  iran: "iran (islamic republic of)",
+  syria: "syrian arab republic",
+  laos: "lao people's democratic republic",
+  moldova: "moldova, republic of",
+  brunei: "brunei darussalam",
 
   "hong kong": "china",
-  "hongkong": "china",
+  hongkong: "china",
 
-  "uae": "united arab emirates",
+  uae: "united arab emirates",
 
-  "vatican": "italy",
+  vatican: "italy",
   "vatican city": "italy",
   "san marino": "italy",
-  "sanmarino": "italy",
+  sanmarino: "italy",
 
   "south korea": "korea, republic of",
-  "korea": "korea, republic of",
+  korea: "korea, republic of",
   "north korea": "korea, democratic people's republic of",
 };
 
@@ -73,7 +74,41 @@ function mulberry32(seed: number) {
   };
 }
 
-export function HeroGlobe({ visitedCountries }: Props) {
+/**
+ * Quick centroid approximation for Polygon/MultiPolygon.
+ * (Good enough for a "you are here" marker.)
+ */
+function centroidOfFeature(f: any): [number, number] | null {
+  const geom = f?.geometry;
+  if (!geom) return null;
+
+  const coords: number[][] = [];
+  const pushRing = (ring: any[]) => {
+    for (const p of ring) coords.push(p);
+  };
+
+  if (geom.type === "Polygon") {
+    for (const ring of geom.coordinates) pushRing(ring);
+  } else if (geom.type === "MultiPolygon") {
+    for (const poly of geom.coordinates) {
+      for (const ring of poly) pushRing(ring);
+    }
+  } else {
+    return null;
+  }
+
+  if (!coords.length) return null;
+
+  let sx = 0;
+  let sy = 0;
+  for (const [lon, lat] of coords) {
+    sx += lon;
+    sy += lat;
+  }
+  return [sx / coords.length, sy / coords.length];
+}
+
+export function HeroGlobe({ visitedCountries, currentCountry }: Props) {
   const [features, setFeatures] = useState<any[]>([]);
   const [rotation, setRotation] = useState(0);
 
@@ -117,14 +152,10 @@ export function HeroGlobe({ visitedCountries }: Props) {
   }, [visitedCountries]);
 
   const projection = useMemo(() => {
-    return geoOrthographic()
-      .scale(radius)
-      .translate([center, center])
-      .rotate([0, -18]);
+    return geoOrthographic().scale(radius).translate([center, center]).rotate([0, -18]);
   }, [center, radius]);
 
   projection.rotate([rotation, -18]);
-
   const pathGen = geoPath(projection);
 
   // Tuned colors
@@ -153,6 +184,7 @@ export function HeroGlobe({ visitedCountries }: Props) {
   // City lights per visited country (deterministic)
   const lightsByCountry = useMemo(() => {
     const out: Record<string, { x: number; y: number; r: number; o: number }[]> = {};
+
     for (const f of features) {
       const name = normalizeCountryName(f?.properties?.name || "");
       if (!visitedSet.has(name)) continue;
@@ -170,8 +202,41 @@ export function HeroGlobe({ visitedCountries }: Props) {
       }
       out[name] = pts;
     }
+
     return out;
   }, [features, visitedSet, center, radius]);
+
+  // Current country -> projected point on globe
+  const currentName = useMemo(() => {
+    if (!currentCountry) return null;
+    const n = normalizeCountryName(currentCountry);
+    return COUNTRY_ALIASES[n] ?? n;
+  }, [currentCountry]);
+
+  const currentPoint = useMemo(() => {
+    if (!currentName || !features.length) return null;
+
+    const match = features.find((f) => {
+      const name = normalizeCountryName(f?.properties?.name || "");
+      return name === currentName;
+    });
+
+    if (!match) return null;
+
+    const c = centroidOfFeature(match);
+    if (!c) return null;
+
+    const p = projection(c as [number, number]);
+    if (!p) return null;
+
+    // Only show if it’s on the visible hemisphere
+    const dx = p[0] - center;
+    const dy = p[1] - center;
+    const visible = dx * dx + dy * dy <= radius * radius;
+    if (!visible) return null;
+
+    return { x: p[0], y: p[1] };
+  }, [currentName, features, projection, center, radius]);
 
   return (
     <div className="mt-2">
@@ -192,10 +257,10 @@ export function HeroGlobe({ visitedCountries }: Props) {
               <stop offset="100%" stopColor="rgba(0,0,0,0.52)" />
             </radialGradient>
 
-            {/* Atmosphere glow */}
+            {/* Atmosphere glow (kept subtle; not a rim stroke) */}
             <radialGradient id="atmo" cx="35%" cy="30%" r="75%">
-              <stop offset="0%" stopColor="rgba(143,211,255,0.10)" />
-              <stop offset="60%" stopColor="rgba(143,211,255,0.05)" />
+              <stop offset="0%" stopColor="rgba(143,211,255,0.08)" />
+              <stop offset="60%" stopColor="rgba(143,211,255,0.03)" />
               <stop offset="100%" stopColor="rgba(143,211,255,0)" />
             </radialGradient>
 
@@ -208,7 +273,7 @@ export function HeroGlobe({ visitedCountries }: Props) {
 
             {/* Gold glow (visited countries) */}
             <filter id="goldGlow" x="-60%" y="-60%" width="220%" height="220%">
-              <feGaussianBlur stdDeviation="2.5" result="blur" />
+              <feGaussianBlur stdDeviation="2.6" result="blur" />
               <feMerge>
                 <feMergeNode in="blur" />
                 <feMergeNode in="SourceGraphic" />
@@ -217,23 +282,32 @@ export function HeroGlobe({ visitedCountries }: Props) {
 
             {/* Light glow for speckles */}
             <filter id="lightGlow" x="-80%" y="-80%" width="260%" height="260%">
-              <feGaussianBlur stdDeviation="1.8" result="b" />
+              <feGaussianBlur stdDeviation="1.9" result="b" />
               <feMerge>
                 <feMergeNode in="b" />
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
 
-            {/* Soft outer shadow */}
+            {/* Pin glow */}
+            <filter id="pinGlow" x="-80%" y="-80%" width="260%" height="260%">
+              <feGaussianBlur stdDeviation="2.6" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+
+            {/* Soft outer shadow (kept subtle; NOT a ring) */}
             <filter id="sphereShadow" x="-25%" y="-25%" width="150%" height="150%">
-                <feDropShadow
-                    dx="0"
-                    dy="6"
-                    stdDeviation="8"
-                    floodColor="#000"
-                    floodOpacity="0.12"
-                />
-                </filter>
+              <feDropShadow
+                dx="0"
+                dy="6"
+                stdDeviation="8"
+                floodColor="#000"
+                floodOpacity="0.10"
+              />
+            </filter>
           </defs>
 
           {/* STARFIELD BEHIND THE SPHERE */}
@@ -298,11 +372,7 @@ export function HeroGlobe({ visitedCountries }: Props) {
 
                 {/* City lights */}
                 {isVisited && lightsByCountry[name]?.length ? (
-                  <g
-                    clipPath={`url(#${clipId})`}
-                    filter="url(#lightGlow)"
-                    className="visited-pulse"
-                  >
+                  <g clipPath={`url(#${clipId})`} filter="url(#lightGlow)" className="visited-pulse">
                     {lightsByCountry[name].map((p, i) => (
                       <circle
                         key={i}
@@ -318,34 +388,35 @@ export function HeroGlobe({ visitedCountries }: Props) {
               </g>
             );
           })}
-opacity={0.35}
+
+          {/* CURRENT LOCATION PIN (red pulsing dot) */}
+          {currentPoint ? (
+            <g
+              className="current-pin"
+              transform={`translate(${currentPoint.x}, ${currentPoint.y})`}
+            >
+              {/* expanding ring */}
+              <circle
+                r="10"
+                fill="transparent"
+                stroke="rgba(255, 70, 70, 0.75)"
+                strokeWidth="2"
+                filter="url(#pinGlow)"
+                className="pin-ring"
+              />
+
+              {/* main dot */}
+              <circle r="4.2" fill="#ff3b3b" filter="url(#pinGlow)" />
+
+              {/* tiny highlight */}
+              <circle cx="-1.2" cy="-1.2" r="1.2" fill="rgba(255,255,255,0.78)" />
+            </g>
+          ) : null}
+
           {/* Terminator shading */}
           <circle cx={center} cy={center} r={radius} fill="url(#terminator)" />
-
-          {/* Atmosphere rim stroke */}
-          <circle
-            cx={center}
-            cy={center}
-            r={radius}
-            fill="transparent"
-            stroke="rgba(120, 200, 255, 0.22)"
-            strokeWidth={1}
-            opacity={1}
-          />
-
-          {/* Limb vignette */}
-          <circle
-            cx={center}
-            cy={center}
-            r={radius}
-            fill="transparent"
-            stroke="rgba(0,0,0,0.42)"
-            strokeWidth={size * 0.055}
-            opacity={0.72}
-          />
         </svg>
 
-        {/* CSS for breathing pulse + reduced motion */}
         <style jsx>{`
           .visited-pulse {
             animation: pulseGlow 4.6s ease-in-out infinite;
@@ -357,15 +428,54 @@ opacity={0.35}
               opacity: 0.55;
             }
             50% {
-              opacity: 0.85;
+              opacity: 0.88;
             }
             100% {
               opacity: 0.55;
             }
           }
 
+          .current-pin {
+            animation: pinFade 1.6s ease-in-out infinite;
+            transform-origin: 0 0;
+          }
+
+          @keyframes pinFade {
+            0% {
+              opacity: 0.85;
+            }
+            50% {
+              opacity: 1;
+            }
+            100% {
+              opacity: 0.85;
+            }
+          }
+
+          .pin-ring {
+            animation: ringExpand 1.6s ease-out infinite;
+            transform-origin: 0 0;
+          }
+
+          @keyframes ringExpand {
+            0% {
+              transform: scale(0.65);
+              opacity: 0.75;
+            }
+            70% {
+              transform: scale(1.7);
+              opacity: 0;
+            }
+            100% {
+              transform: scale(1.7);
+              opacity: 0;
+            }
+          }
+
           @media (prefers-reduced-motion: reduce) {
-            .visited-pulse {
+            .visited-pulse,
+            .current-pin,
+            .pin-ring {
               animation: none;
             }
           }
