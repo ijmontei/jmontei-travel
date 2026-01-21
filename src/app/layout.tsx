@@ -16,7 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AmbientBackground />
 
         <div className="mx-auto max-w-4xl px-5">
-        <header className="pt-10 pb-6 flex justify-center">
+        <header className="pt-4 pb-1 flex justify-center">
           <a
             href="/"
             className="font-semibold tracking-tight text-xl md:text-2xl hover:opacity-70 transition text-center"

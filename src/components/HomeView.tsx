@@ -75,7 +75,7 @@ export function HomeView({ posts }: { posts: Post[] }) {
         {/* HERO SECTION */}
         <header className="mb-2">
           {/* Globe first (hero centerpiece) */}
-          <div className="flex justify-center">
+          <div className="flex justify-center -mt-6">
             <HeroGlobe visitedCountries={visitedCountries} currentCountry={currentCountry} />
           </div>
 

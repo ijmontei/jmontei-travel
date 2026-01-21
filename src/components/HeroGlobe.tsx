@@ -134,7 +134,7 @@ export function HeroGlobe({ visitedCountries, currentCountry }: Props) {
   useEffect(() => {
     let raf = 0;
     const tick = () => {
-      setRotation((r) => (r + 0.192) % 360); // was 0.16
+      setRotation((r) => (r + 0.25) % 360); 
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -395,21 +395,22 @@ export function HeroGlobe({ visitedCountries, currentCountry }: Props) {
           {/* CURRENT LOCATION PIN (smaller + only visible on front hemisphere) */}
           {currentPoint ? (
             <g className="current-pin" transform={`translate(${currentPoint.x}, ${currentPoint.y})`}>
-              {/* expanding ring (50% smaller) */}
-              <circle
-                r="5"
+              {/* expanding ring */}
+                <circle
+                r="6.25"
                 fill="transparent"
                 stroke="rgba(255, 70, 70, 0.78)"
-                strokeWidth="1.5"
+                strokeWidth="1.9"
                 filter="url(#pinGlow)"
                 className="pin-ring"
-              />
+                />
 
-              {/* main dot (50% smaller) */}
-              <circle r="2.1" fill="#ff3b3b" filter="url(#pinGlow)" />
+                {/* main dot */}
+                <circle r="2.625" fill="#ff3b3b" filter="url(#pinGlow)" />
 
-              {/* tiny highlight */}
-              <circle cx="-0.6" cy="-0.6" r="0.6" fill="rgba(255,255,255,0.78)" />
+                {/* tiny highlight */}
+                <circle cx="-0.75" cy="-0.75" r="0.75" fill="rgba(255,255,255,0.78)" />
+
             </g>
           ) : null}
 
