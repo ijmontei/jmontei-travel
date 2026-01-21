@@ -60,11 +60,6 @@ export function GalleryCarousel({ title = "Gallery", images }: Props) {
       </div>
 
       <div className="mt-4 relative">
-        {/* Right-edge gradient swipe cue (mobile only) */}
-        {total > 1 ? (
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-12 sm:hidden z-10 bg-gradient-to-l from-white/90 to-transparent" />
-        ) : null}
-
         <Carousel opts={{ align: "start", loop: total > 1 }} setApi={setApi}>
           <CarouselContent>
             {images.map((img, idx) => {
