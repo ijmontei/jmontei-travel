@@ -14,15 +14,15 @@ function ModeToggle({
   setMode: (m: "latest" | "country") => void;
 }) {
   return (
-    <div className="inline-flex rounded-full border border-[hsl(0, 100%, 4%)]  p-1 shadow-sm">
+    <div className="inline-flex rounded-full border border-white/20 bg-white/10 backdrop-blur p-1">
       <button
         type="button"
         onClick={() => setMode("latest")}
         className={[
-          "rounded-full px-4 py-2 text-sm font-medium transition",
+          "rounded-full px-4 py-2 text-sm font-medium transition-colors duration-200",
           mode === "latest"
-            ? "bg-[hsl(var(--accent))] text-stone shadow-sm"
-            : "text-[hsl(var(--text))] hover:bg-black/5",
+            ? "bg-[#0B1C2D] text-[#E6C07B] border border-[#0A1624]"
+            : "text-[hsl(var(--text))] hover:bg-white/10",
         ].join(" ")}
       >
         Latest
@@ -32,10 +32,10 @@ function ModeToggle({
         type="button"
         onClick={() => setMode("country")}
         className={[
-          "rounded-full px-4 py-2 text-sm font-medium transition",
-          mode === "country" 
-            ? "bg-[hsl(var(--accent))] text-stone shadow-sm"
-            : "text-[hsl(var(--text))] hover:bg-black/5",
+          "rounded-full px-4 py-2 text-sm font-medium transition-colors duration-200",
+          mode === "country"
+            ? "bg-[#0B1C2D] text-[#E6C07B] border border-[#0A1624]"
+            : "text-[hsl(var(--text))] hover:bg-white/10",
         ].join(" ")}
       >
         By Country
@@ -43,6 +43,7 @@ function ModeToggle({
     </div>
   );
 }
+
 
 export function HomeView({ posts }: { posts: Post[] }) {
   const [mode, setMode] = useState<"latest" | "country">("latest");
