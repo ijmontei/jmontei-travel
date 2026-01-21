@@ -132,7 +132,7 @@ export function HeroGlobe({ visitedCountries, currentCountry }: Props) {
 
   // smooth spin (+20% faster)
     useEffect(() => {
-        const SPEED = 30; // degrees per second (≈ your 0.5 @ 60fps)
+        const SPEED = 20; // degrees per second (≈ your 0.5 @ 60fps)
     
         let raf = 0;
         let last = performance.now();
