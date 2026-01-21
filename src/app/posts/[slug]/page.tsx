@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { sanityClient } from "@/lib/sanity.client";
 import { urlForImage } from "@/lib/sanity.image";
 import { PortableTextRenderer } from "@/components/PortableTextRenderer";
+import { GalleryCarousel } from "@/components/GalleryCarousel";
 
 type PageProps = {
   // Your deployment showed params is a Promise — this is the critical fix.
@@ -46,11 +47,15 @@ export default async function PostPage({ params }: PageProps) {
 
         <div className="mt-3 text-sm text-zinc-500">
           {post.country ? <span>{post.country} · </span> : null}
-          {post.publishedAt ? <span>{new Date(post.publishedAt).toLocaleDateString()}</span> : null}
+          {post.publishedAt ? (
+            <span>{new Date(post.publishedAt).toLocaleDateString()}</span>
+          ) : null}
         </div>
 
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">{post.title}</h1>
-        {post.excerpt ? <p className="mt-3 text-zinc-600 leading-relaxed">{post.excerpt}</p> : null}
+        {post.excerpt ? (
+          <p className="mt-3 text-zinc-600 leading-relaxed">{post.excerpt}</p>
+        ) : null}
       </div>
 
       {coverUrl ? (
@@ -63,29 +68,8 @@ export default async function PostPage({ params }: PageProps) {
 
       <PortableTextRenderer value={post.body} />
 
-      {post.gallery?.length ? (
-        <section className="mt-12">
-          <h2 className="text-xl font-semibold tracking-tight">Gallery</h2>
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {post.gallery.map((img: any, idx: number) => {
-              const url = urlForImage(img).width(1200).fit("max").auto("format").url();
-              return (
-                <div key={idx} className="overflow-hidden rounded-2xl border bg-zinc-50">
-                  <div className="relative aspect-[4/3]">
-                    <Image
-                      src={url}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 640px) 100vw, 50vw"
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      ) : null}
+      {/* Carousel gallery (no cropping, preserves aspect ratio) */}
+      {post.gallery?.length ? <GalleryCarousel images={post.gallery} /> : null}
     </article>
   );
 }
