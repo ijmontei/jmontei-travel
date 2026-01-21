@@ -74,24 +74,23 @@ export function HomeView({ posts }: { posts: Post[] }) {
       <div className="mx-auto max-w-5xl px-5 py-10">
 
         {/* HERO SECTION */}
-        <section className="mb-10 grid grid-cols-1 items-center gap-8 md:grid-cols-2">
-
-          {/* Left text */}
-          <div>
-            <h2 className="text-xl font-semibold tracking-tight">
-              Stories and photos from the road.
-            </h2>
-
-            <div className="mt-4">
-              <ModeToggle mode={mode} setMode={setMode} />
-            </div>
-          </div>
-
-          {/* Right globe */}
-          <div className="flex justify-center md:justify-end">
+        <header className="mb-10">
+          {/* Globe first (hero centerpiece) */}
+          <div className="flex justify-center">
             <HeroGlobe visitedCountries={visitedCountries} />
           </div>
-        </section>
+
+          {/* Then headline + toggle */}
+          <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight text-[hsl(var(--text))]">
+                Stories and photos from the road.
+              </h2>
+            </div>
+
+            <ModeToggle mode={mode} setMode={setMode} />
+          </div>
+        </header>
 
         {/* CONTENT */}
         <div className="transition-opacity duration-200">

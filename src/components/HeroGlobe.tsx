@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { geoMercator, geoPath } from "d3-geo";
+import { geoOrthographic, geoPath } from "d3-geo";
 import { feature } from "topojson-client";
 
 type Props = {
@@ -16,6 +16,7 @@ function normalizeCountryName(name: string) {
     .replace(/\s+/g, " ");
 }
 
+// Map your Sanity "country" values -> world-atlas names
 const COUNTRY_ALIASES: Record<string, string> = {
   "usa": "united states of america",
   "united states": "united states of america",
@@ -37,11 +38,13 @@ const COUNTRY_ALIASES: Record<string, string> = {
   "moldova": "moldova, republic of",
   "brunei": "brunei darussalam",
 
+  // If you want HK to count as China visited:
   "hong kong": "china",
   "hongkong": "china",
 
   "uae": "united arab emirates",
 
+  // microstates often missing in 110m dataset
   "vatican": "italy",
   "vatican city": "italy",
   "san marino": "italy",
@@ -54,6 +57,11 @@ const COUNTRY_ALIASES: Record<string, string> = {
 
 export function HeroGlobe({ visitedCountries }: Props) {
   const [features, setFeatures] = useState<any[]>([]);
+  const [rotation, setRotation] = useState(0);
+
+  // responsive size
+  const size = 320; // internal drawing size (we scale with CSS)
+  const center = size / 2;
 
   useEffect(() => {
     let mounted = true;
@@ -70,6 +78,17 @@ export function HeroGlobe({ visitedCountries }: Props) {
     };
   }, []);
 
+  // spin
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      setRotation((r) => (r + 0.18) % 360); // speed
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   const visitedSet = useMemo(() => {
     const set = new Set<string>();
     for (const c of visitedCountries || []) {
@@ -79,132 +98,127 @@ export function HeroGlobe({ visitedCountries }: Props) {
     return set;
   }, [visitedCountries]);
 
-  // Build projection + path generator
-  const { pathGen, viewBox } = useMemo(() => {
-    // A centered mercator that fits well
-    const projection = geoMercator()
-      .translate([500, 280])
-      .scale(160);
+  const projection = useMemo(() => {
+    // Orthographic = real globe projection
+    return geoOrthographic()
+      .scale(size * 0.42)
+      .translate([center, center])
+      .rotate([0, -18]); // base tilt in latitude (axis tilt feel)
+  }, [center]);
 
-    const pathGen = geoPath(projection);
-    return { pathGen, viewBox: "0 0 1000 560" };
-  }, []);
+  // Apply rotation (equator spin) each render
+  projection.rotate([rotation, -18]);
 
-  const stroke = "rgba(30, 40, 60, 0.55)";
-  const unvisitedFill = "rgba(255,255,255,0.06)";
-  const visitedFill = "rgb(245, 222, 136)";
+  const pathGen = geoPath(projection);
+
+  // Colors tuned to “Google Earth dark vibe”
+  const ocean = "#07111f";
+  const landBase = "rgba(255,255,255,0.06)"; // faint land on dark globe
+  const border = "rgba(170,190,220,0.18)";
+  const glowGold = "#f5de88";
 
   return (
     <div className="mt-2">
-      {/* responsive sizing */}
-      <div className="relative w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] md:w-[320px] md:h-[320px]">
-        <div className="relative h-full w-full overflow-hidden rounded-full border border-white/15">
-          {/* slight "tilt" without 3D artifacts */}
-          <div className="absolute inset-0 globe-tilt">
-            {/* moving texture strip */}
-            <div className="absolute inset-0 globe-texture">
-              {/* We render the map twice side-by-side to allow seamless scrolling */}
-              <div className="absolute top-1/2 -translate-y-1/2 left-0 flex h-full w-[200%]">
-                {[0, 1].map((dup) => (
-                  <svg
-                    key={dup}
-                    viewBox={viewBox}
-                    className="h-full w-1/2"
-                    aria-hidden="true"
-                  >
-                    {features.map((f, idx) => {
-                      const name = normalizeCountryName(f?.properties?.name || "");
-                      const isVisited = visitedSet.has(name);
+      {/* Responsive display sizing */}
+      <div className="relative w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] md:w-[320px] md:h-[320px] mx-auto">
+        <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full block">
+          <defs>
+            {/* Sphere shading */}
+            <radialGradient id="oceanShade" cx="30%" cy="28%" r="75%">
+              <stop offset="0%" stopColor="#0b1b33" stopOpacity="1" />
+              <stop offset="55%" stopColor={ocean} stopOpacity="1" />
+              <stop offset="100%" stopColor="#040810" stopOpacity="1" />
+            </radialGradient>
 
-                      return (
-                        <path
-                          key={`${dup}-${idx}`}
-                          d={pathGen(f) || ""}
-                          fill={isVisited ? visitedFill : unvisitedFill}
-                          stroke={stroke}
-                          strokeWidth={0.8}
-                          vectorEffect="non-scaling-stroke"
-                        />
-                      );
-                    })}
-                  </svg>
-                ))}
-              </div>
-            </div>
+            {/* Atmosphere rim */}
+            <radialGradient id="atmo" cx="35%" cy="30%" r="70%">
+              <stop offset="0%" stopColor="#8fd3ff" stopOpacity="0.10" />
+              <stop offset="60%" stopColor="#8fd3ff" stopOpacity="0.04" />
+              <stop offset="100%" stopColor="#8fd3ff" stopOpacity="0" />
+            </radialGradient>
 
-            {/* Sphere shading layers */}
-            <div className="pointer-events-none absolute inset-0 globe-terminator" />
-            <div className="pointer-events-none absolute inset-0 globe-highlight" />
-            <div className="pointer-events-none absolute inset-0 globe-vignette" />
-          </div>
-        </div>
+            {/* Gold glow for visited countries */}
+            <filter id="goldGlow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="2.2" result="blur" />
+              <feColorMatrix
+                in="blur"
+                type="matrix"
+                values="
+                  1 0 0 0 0
+                  0 1 0 0 0
+                  0 0 1 0 0
+                  0 0 0 0.9 0"
+                result="colored"
+              />
+              <feMerge>
+                <feMergeNode in="colored" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
 
-        <div className="mt-3 text-center text-sm text-[rgb(var(--muted))]">
-          Countries visited
-        </div>
+            {/* Soft shadow to deepen sphere */}
+            <filter id="sphereShadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="8" stdDeviation="10" floodColor="#000" floodOpacity="0.25" />
+            </filter>
+          </defs>
+
+          {/* Sphere */}
+          <circle
+            cx={center}
+            cy={center}
+            r={size * 0.42}
+            fill="url(#oceanShade)"
+            filter="url(#sphereShadow)"
+          />
+
+          {/* Atmosphere overlay */}
+          <circle cx={center} cy={center} r={size * 0.42} fill="url(#atmo)" />
+
+          {/* Countries */}
+          {features.map((f, idx) => {
+            const name = normalizeCountryName(f?.properties?.name || "");
+            const isVisited = visitedSet.has(name);
+
+            const d = pathGen(f) || "";
+            if (!d) return null;
+
+            return (
+              <g key={idx}>
+                {/* Glow layer for visited */}
+                {isVisited ? (
+                  <path
+                    d={d}
+                    fill={glowGold}
+                    opacity={0.85}
+                    filter="url(#goldGlow)"
+                  />
+                ) : null}
+
+                {/* Base land layer */}
+                <path
+                  d={d}
+                  fill={isVisited ? glowGold : landBase}
+                  opacity={isVisited ? 0.92 : 1}
+                  stroke={border}
+                  strokeWidth={0.7}
+                  vectorEffect="non-scaling-stroke"
+                />
+              </g>
+            );
+          })}
+
+          {/* Dark limb vignette to sell curvature */}
+          <circle
+            cx={center}
+            cy={center}
+            r={size * 0.42}
+            fill="transparent"
+            stroke="rgba(0,0,0,0.35)"
+            strokeWidth={size * 0.06}
+            opacity={0.65}
+          />
+        </svg>
       </div>
-
-      <style jsx>{`
-        /* Slight 2D tilt to mimic an axial tilt without turning into a “paper disc” */
-        .globe-tilt {
-          transform: rotate(-10deg);
-          transform-origin: 50% 50%;
-        }
-
-        /* Texture scroll = “equator spin” illusion */
-        .globe-texture {
-          animation: scrollX 22s linear infinite;
-          will-change: transform;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .globe-texture {
-            animation: none;
-          }
-        }
-
-        /* Move the double-width strip left by half its width for seamless loop */
-        @keyframes scrollX {
-          from {
-            transform: translateX(0%);
-          }
-          to {
-            transform: translateX(-50%);
-          }
-        }
-
-        /* Terminator: darkens the far side like a sphere */
-        .globe-terminator {
-          background: radial-gradient(
-            circle at 32% 40%,
-            rgba(0, 0, 0, 0) 0%,
-            rgba(0, 0, 0, 0.10) 52%,
-            rgba(0, 0, 0, 0.34) 100%
-          );
-          mix-blend-mode: multiply;
-        }
-
-        /* Soft specular highlight */
-        .globe-highlight {
-          background: radial-gradient(
-            circle at 26% 28%,
-            rgba(255, 255, 255, 0.18) 0%,
-            rgba(255, 255, 255, 0.06) 35%,
-            rgba(255, 255, 255, 0) 60%
-          );
-          mix-blend-mode: screen;
-        }
-
-        /* Edge vignette */
-        .globe-vignette {
-          background: radial-gradient(
-            circle at 50% 50%,
-            rgba(0, 0, 0, 0) 62%,
-            rgba(0, 0, 0, 0.18) 100%
-          );
-          mix-blend-mode: multiply;
-        }
-      `}</style>
     </div>
   );
 }
