@@ -318,7 +318,7 @@ export function HeroGlobe({ visitedCountries }: Props) {
               </g>
             );
           })}
-
+opacity={0.35}
           {/* Terminator shading */}
           <circle cx={center} cy={center} r={radius} fill="url(#terminator)" />
 
@@ -329,8 +329,8 @@ export function HeroGlobe({ visitedCountries }: Props) {
             r={radius}
             fill="transparent"
             stroke="rgba(120, 200, 255, 0.22)"
-            strokeWidth={2.2}
-            opacity={0.35}
+            strokeWidth={1}
+            opacity={1}
           />
 
           {/* Limb vignette */}
