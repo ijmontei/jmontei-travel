@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { geoOrthographic, geoPath } from "d3-geo";
+import { geoOrthographic, geoPath, geoCentroid } from "d3-geo";
 import { feature } from "topojson-client";
 
 type Props = {
   visitedCountries: string[];
-  currentCountry?: string | null; // NEW
+  currentCountry?: string | null;
 };
 
 function normalizeCountryName(name: string) {
@@ -74,40 +74,6 @@ function mulberry32(seed: number) {
   };
 }
 
-/**
- * Quick centroid approximation for Polygon/MultiPolygon.
- * (Good enough for a "you are here" marker.)
- */
-function centroidOfFeature(f: any): [number, number] | null {
-  const geom = f?.geometry;
-  if (!geom) return null;
-
-  const coords: number[][] = [];
-  const pushRing = (ring: any[]) => {
-    for (const p of ring) coords.push(p);
-  };
-
-  if (geom.type === "Polygon") {
-    for (const ring of geom.coordinates) pushRing(ring);
-  } else if (geom.type === "MultiPolygon") {
-    for (const poly of geom.coordinates) {
-      for (const ring of poly) pushRing(ring);
-    }
-  } else {
-    return null;
-  }
-
-  if (!coords.length) return null;
-
-  let sx = 0;
-  let sy = 0;
-  for (const [lon, lat] of coords) {
-    sx += lon;
-    sy += lat;
-  }
-  return [sx / coords.length, sy / coords.length];
-}
-
 export function HeroGlobe({ visitedCountries, currentCountry }: Props) {
   const [features, setFeatures] = useState<any[]>([]);
   const [rotation, setRotation] = useState(0);
@@ -151,12 +117,19 @@ export function HeroGlobe({ visitedCountries, currentCountry }: Props) {
     return set;
   }, [visitedCountries]);
 
+  /**
+   * IMPORTANT: projection depends on rotation.
+   * This ensures the pin + paths update every frame without relying on
+   * mutating the projection instance.
+   */
   const projection = useMemo(() => {
-    return geoOrthographic().scale(radius).translate([center, center]).rotate([0, -18]);
-  }, [center, radius]);
+    return geoOrthographic()
+      .scale(radius)
+      .translate([center, center])
+      .rotate([rotation, -18]);
+  }, [center, radius, rotation]);
 
-  projection.rotate([rotation, -18]);
-  const pathGen = geoPath(projection);
+  const pathGen = useMemo(() => geoPath(projection), [projection]);
 
   // Tuned colors
   const oceanA = "#050b15";
@@ -183,7 +156,8 @@ export function HeroGlobe({ visitedCountries, currentCountry }: Props) {
 
   // City lights per visited country (deterministic)
   const lightsByCountry = useMemo(() => {
-    const out: Record<string, { x: number; y: number; r: number; o: number }[]> = {};
+    const out: Record<string, { x: number; y: number; r: number; o: number }[]> =
+      {};
 
     for (const f of features) {
       const name = normalizeCountryName(f?.properties?.name || "");
@@ -206,37 +180,41 @@ export function HeroGlobe({ visitedCountries, currentCountry }: Props) {
     return out;
   }, [features, visitedSet, center, radius]);
 
-  // Current country -> projected point on globe
+  // Current country -> canonical name
   const currentName = useMemo(() => {
     if (!currentCountry) return null;
     const n = normalizeCountryName(currentCountry);
     return COUNTRY_ALIASES[n] ?? n;
   }, [currentCountry]);
 
-  const currentPoint = useMemo(() => {
+  // Current country -> matching feature
+  const currentFeature = useMemo(() => {
     if (!currentName || !features.length) return null;
+    return (
+      features.find((f) => {
+        const name = normalizeCountryName(f?.properties?.name || "");
+        return name === currentName;
+      }) ?? null
+    );
+  }, [currentName, features]);
 
-    const match = features.find((f) => {
-      const name = normalizeCountryName(f?.properties?.name || "");
-      return name === currentName;
-    });
+  /**
+   * Current country -> projected point.
+   * Key behavior: projection() returns null when the point is on the back hemisphere,
+   * so the pin automatically fades out / disappears when not visible.
+   */
+  const currentPoint = useMemo(() => {
+    if (!currentFeature) return null;
 
-    if (!match) return null;
+    const lonLat = geoCentroid(currentFeature) as [number, number];
 
-    const c = centroidOfFeature(match);
-    if (!c) return null;
+    if (!Number.isFinite(lonLat[0]) || !Number.isFinite(lonLat[1])) return null;
 
-    const p = projection(c as [number, number]);
-    if (!p) return null;
-
-    // Only show if it’s on the visible hemisphere
-    const dx = p[0] - center;
-    const dy = p[1] - center;
-    const visible = dx * dx + dy * dy <= radius * radius;
-    if (!visible) return null;
+    const p = projection(lonLat as any) as [number, number] | null;
+    if (!p) return null; // not visible (behind globe)
 
     return { x: p[0], y: p[1] };
-  }, [currentName, features, projection, center, radius]);
+  }, [currentFeature, projection]);
 
   return (
     <div className="mt-0">
@@ -298,7 +276,7 @@ export function HeroGlobe({ visitedCountries, currentCountry }: Props) {
               </feMerge>
             </filter>
 
-            {/* Soft outer shadow (kept subtle; NOT a ring) */}
+            {/* Soft outer shadow (NOT a ring/border) */}
             <filter id="sphereShadow" x="-25%" y="-25%" width="150%" height="150%">
               <feDropShadow
                 dx="0"
@@ -372,7 +350,11 @@ export function HeroGlobe({ visitedCountries, currentCountry }: Props) {
 
                 {/* City lights */}
                 {isVisited && lightsByCountry[name]?.length ? (
-                  <g clipPath={`url(#${clipId})`} filter="url(#lightGlow)" className="visited-pulse">
+                  <g
+                    clipPath={`url(#${clipId})`}
+                    filter="url(#lightGlow)"
+                    className="visited-pulse"
+                  >
                     {lightsByCountry[name].map((p, i) => (
                       <circle
                         key={i}
@@ -389,11 +371,12 @@ export function HeroGlobe({ visitedCountries, currentCountry }: Props) {
             );
           })}
 
-          {/* CURRENT LOCATION PIN (red pulsing dot) */}
+          {/* CURRENT LOCATION PIN (auto-hides when behind the globe) */}
           {currentPoint ? (
             <g
               className="current-pin"
               transform={`translate(${currentPoint.x}, ${currentPoint.y})`}
+              filter="url(#pinGlow)"
             >
               {/* expanding ring */}
               <circle
@@ -401,12 +384,11 @@ export function HeroGlobe({ visitedCountries, currentCountry }: Props) {
                 fill="transparent"
                 stroke="rgba(255, 70, 70, 0.75)"
                 strokeWidth="2"
-                filter="url(#pinGlow)"
                 className="pin-ring"
               />
 
               {/* main dot */}
-              <circle r="4.2" fill="#ff3b3b" filter="url(#pinGlow)" />
+              <circle r="4.2" fill="#ff3b3b" />
 
               {/* tiny highlight */}
               <circle cx="-1.2" cy="-1.2" r="1.2" fill="rgba(255,255,255,0.78)" />
