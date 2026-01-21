@@ -28,7 +28,7 @@ export function GalleryCarousel({ title = "Gallery", images }: Props) {
 
     const onSelect = () => {
       setActive(api.selectedScrollSnap());
-      setShowHint(false); // hide hint after first interaction
+      setShowHint(false);
     };
 
     onSelect();
@@ -63,28 +63,25 @@ export function GalleryCarousel({ title = "Gallery", images }: Props) {
         <Carousel opts={{ align: "start", loop: total > 1 }} setApi={setApi}>
           <CarouselContent>
             {images.map((img, idx) => {
-              const url =
-                img?.asset
-                  ? urlForImage(img).width(2000).fit("max").auto("format").url()
-                  : null;
+              const url = img?.asset
+                ? urlForImage(img).width(2000).fit("max").auto("format").url()
+                : null;
 
               if (!url) return null;
 
               return (
                 <CarouselItem key={img?._key ?? idx}>
-                  <figure className="rounded-2xl border bg-zinc-50 overflow-hidden">
-                    {/* Fixed stage height; contain = no cropping */}
-                    <div className="relative h-[420px] sm:h-[520px]">
-                        <Image
-                            src={url}
-                            alt={img?.alt || `Photo ${idx + 1}`}
-                            fill
-                            className="object-contain"
-                            sizes="(max-width: 768px) 100vw, 768px"
-                            priority={idx === 0}
-                        />
-                        </div>
-
+                  <figure className="rounded-2xl border overflow-hidden">
+                    <div className="relative h-[420px] sm:h-[520px] overflow-hidden">
+                      <Image
+                        src={url}
+                        alt={img?.alt || `Photo ${idx + 1}`}
+                        fill
+                        className="object-contain"
+                        sizes="(max-width: 768px) 100vw, 768px"
+                        priority={idx === 0}
+                      />
+                    </div>
 
                     {img?.caption ? (
                       <figcaption className="px-4 py-3 text-sm text-zinc-600">
@@ -97,12 +94,10 @@ export function GalleryCarousel({ title = "Gallery", images }: Props) {
             })}
           </CarouselContent>
 
-          {/* Desktop arrows; swipe works on mobile */}
           <CarouselPrevious className="hidden sm:flex" />
           <CarouselNext className="hidden sm:flex" />
         </Carousel>
 
-        {/* Dots */}
         {total > 1 ? (
           <div className="mt-4 flex justify-center gap-2">
             {Array.from({ length: total }).map((_, i) => (

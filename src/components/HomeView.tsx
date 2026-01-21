@@ -22,7 +22,7 @@ function ModeToggle({
           "rounded-full px-4 py-2 text-sm font-medium transition",
           mode === "latest"
             ? "bg-[hsl(var(--accent))] text-white shadow-sm"
-            : "text-[hsl(var(--text))] hover:bg-black/5",
+            : "text-[hsl(45 90% 60%)] hover:bg-black/5",
         ].join(" ")}
       >
         Latest
@@ -35,7 +35,7 @@ function ModeToggle({
           "rounded-full px-4 py-2 text-sm font-medium transition",
           mode === "country" 
             ? "bg-[hsl(var(--accent))] text-white shadow-sm"
-            : "text-[hsl(var(--text))] hover:bg-black/5",
+            : "text-[hsl(45 90% 60%)] hover:bg-black/5",
         ].join(" ")}
       >
         By Country
