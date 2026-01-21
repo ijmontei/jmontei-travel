@@ -134,7 +134,7 @@ export function HeroGlobe({ visitedCountries, currentCountry }: Props) {
   useEffect(() => {
     let raf = 0;
     const tick = () => {
-      setRotation((r) => (r + 0.25) % 360); 
+      setRotation((r) => (r + 0.5) % 360); 
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -317,7 +317,7 @@ export function HeroGlobe({ visitedCountries, currentCountry }: Props) {
           </defs>
 
           {/* STARFIELD */}
-          <g opacity={0.55}>
+          <g opacity={0.75}>
             {stars.map((s, i) => (
               <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#ffffff" opacity={s.o} />
             ))}
