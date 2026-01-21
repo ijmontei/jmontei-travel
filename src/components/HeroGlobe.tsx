@@ -16,7 +16,6 @@ function normalizeCountryName(name: string) {
     .replace(/\s+/g, " ");
 }
 
-// Map your Sanity "country" values -> world-atlas names
 const COUNTRY_ALIASES: Record<string, string> = {
   "usa": "united states of america",
   "united states": "united states of america",
@@ -38,13 +37,11 @@ const COUNTRY_ALIASES: Record<string, string> = {
   "moldova": "moldova, republic of",
   "brunei": "brunei darussalam",
 
-  // if you want HK to count as China visited
   "hong kong": "china",
   "hongkong": "china",
 
   "uae": "united arab emirates",
 
-  // microstates often missing in 110m dataset
   "vatican": "italy",
   "vatican city": "italy",
   "san marino": "italy",
@@ -82,51 +79,63 @@ export function HeroGlobe({ visitedCountries }: Props) {
     return set;
   }, [visitedCountries]);
 
-  // Projection tuned to look good inside the circle
+  // Build projection + path generator
   const { pathGen, viewBox } = useMemo(() => {
+    // A centered mercator that fits well
     const projection = geoMercator()
-      .translate([400, 400])
-      .scale(130);
+      .translate([500, 280])
+      .scale(160);
 
     const pathGen = geoPath(projection);
-    return { pathGen, viewBox: "0 0 800 800" };
+    return { pathGen, viewBox: "0 0 1000 560" };
   }, []);
+
+  const stroke = "rgba(30, 40, 60, 0.55)";
+  const unvisitedFill = "rgba(255,255,255,0.06)";
+  const visitedFill = "rgb(245, 222, 136)";
 
   return (
     <div className="mt-2">
       {/* responsive sizing */}
       <div className="relative w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] md:w-[320px] md:h-[320px]">
-        {/* Perspective wrapper */}
-        <div className="relative h-full w-full rounded-full overflow-hidden border border-white/15">
-          {/* Tilt the whole globe */}
+        <div className="relative h-full w-full overflow-hidden rounded-full border border-white/15">
+          {/* slight "tilt" without 3D artifacts */}
           <div className="absolute inset-0 globe-tilt">
-            {/* Spin around the “equator” (Y axis) */}
-            <div className="absolute inset-0 globe-spinY">
-              <svg viewBox={viewBox} className="h-full w-full">
-                <g transform="translate(0, 30)">
-                  {features.map((f, idx) => {
-                    const name = normalizeCountryName(f?.properties?.name || "");
-                    const isVisited = visitedSet.has(name);
+            {/* moving texture strip */}
+            <div className="absolute inset-0 globe-texture">
+              {/* We render the map twice side-by-side to allow seamless scrolling */}
+              <div className="absolute top-1/2 -translate-y-1/2 left-0 flex h-full w-[200%]">
+                {[0, 1].map((dup) => (
+                  <svg
+                    key={dup}
+                    viewBox={viewBox}
+                    className="h-full w-1/2"
+                    aria-hidden="true"
+                  >
+                    {features.map((f, idx) => {
+                      const name = normalizeCountryName(f?.properties?.name || "");
+                      const isVisited = visitedSet.has(name);
 
-                    return (
-                      <path
-                        key={idx}
-                        d={pathGen(f) || ""}
-                        fill={isVisited ? "rgb(245, 222, 136)" : "rgba(255,255,255,0.06)"}
-                        stroke="rgba(30, 40, 60, 0.65)"   // darker outline so it reads like borders
-                        strokeWidth={0.75}
-                        vectorEffect="non-scaling-stroke"
-                      />
-                    );
-                  })}
-                </g>
-              </svg>
-
-              {/* Sphere shading to sell the globe */}
-              <div className="pointer-events-none absolute inset-0 globe-shade" />
-              <div className="pointer-events-none absolute inset-0 globe-highlight" />
-              <div className="pointer-events-none absolute inset-0 globe-vignette" />
+                      return (
+                        <path
+                          key={`${dup}-${idx}`}
+                          d={pathGen(f) || ""}
+                          fill={isVisited ? visitedFill : unvisitedFill}
+                          stroke={stroke}
+                          strokeWidth={0.8}
+                          vectorEffect="non-scaling-stroke"
+                        />
+                      );
+                    })}
+                  </svg>
+                ))}
+              </div>
             </div>
+
+            {/* Sphere shading layers */}
+            <div className="pointer-events-none absolute inset-0 globe-terminator" />
+            <div className="pointer-events-none absolute inset-0 globe-highlight" />
+            <div className="pointer-events-none absolute inset-0 globe-vignette" />
           </div>
         </div>
 
@@ -136,55 +145,57 @@ export function HeroGlobe({ visitedCountries }: Props) {
       </div>
 
       <style jsx>{`
-        /* Add depth */
+        /* Slight 2D tilt to mimic an axial tilt without turning into a “paper disc” */
         .globe-tilt {
-          transform: perspective(900px) rotateZ(-16deg) rotateX(10deg);
-          transform-style: preserve-3d;
+          transform: rotate(-10deg);
+          transform-origin: 50% 50%;
         }
 
-        /* Equator spin: rotate around Y axis */
-        .globe-spinY {
-          animation: spinY 18s linear infinite;
-          transform-style: preserve-3d;
+        /* Texture scroll = “equator spin” illusion */
+        .globe-texture {
+          animation: scrollX 22s linear infinite;
           will-change: transform;
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .globe-spinY {
+          .globe-texture {
             animation: none;
           }
         }
 
-        @keyframes spinY {
+        /* Move the double-width strip left by half its width for seamless loop */
+        @keyframes scrollX {
           from {
-            transform: rotateY(0deg);
+            transform: translateX(0%);
           }
           to {
-            transform: rotateY(360deg);
+            transform: translateX(-50%);
           }
         }
 
-        /* Shading layers */
-        .globe-shade {
+        /* Terminator: darkens the far side like a sphere */
+        .globe-terminator {
           background: radial-gradient(
-            circle at 30% 35%,
+            circle at 32% 40%,
             rgba(0, 0, 0, 0) 0%,
-            rgba(0, 0, 0, 0.14) 55%,
+            rgba(0, 0, 0, 0.10) 52%,
             rgba(0, 0, 0, 0.34) 100%
           );
           mix-blend-mode: multiply;
         }
 
+        /* Soft specular highlight */
         .globe-highlight {
           background: radial-gradient(
-            circle at 25% 25%,
-            rgba(255, 255, 255, 0.16) 0%,
+            circle at 26% 28%,
+            rgba(255, 255, 255, 0.18) 0%,
             rgba(255, 255, 255, 0.06) 35%,
             rgba(255, 255, 255, 0) 60%
           );
           mix-blend-mode: screen;
         }
 
+        /* Edge vignette */
         .globe-vignette {
           background: radial-gradient(
             circle at 50% 50%,

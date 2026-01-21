@@ -4,8 +4,8 @@ import { useMemo, useState } from "react";
 import type { Post } from "@/lib/types";
 import { PostCard } from "@/components/PostCard";
 import { CountryAccordion } from "@/components/CountryAccordion";
-import { Reveal } from "@/components/Reveal";
 import { HeroGlobe } from "@/components/HeroGlobe";
+import { Reveal } from "@/components/Reveal";
 
 function ModeToggle({
   mode,
@@ -15,7 +15,7 @@ function ModeToggle({
   setMode: (m: "latest" | "country") => void;
 }) {
   return (
-    <div className="inline-flex rounded-full border border-[hsl(0, 100%, 4%)] p-1 shadow-sm">
+    <div className="inline-flex rounded-full border border-[hsl(0,100%,4%)] p-1 shadow-sm bg-white/60 backdrop-blur">
       <button
         type="button"
         onClick={() => setMode("latest")}
@@ -48,45 +48,52 @@ function ModeToggle({
 export function HomeView({ posts }: { posts: Post[] }) {
   const [mode, setMode] = useState<"latest" | "country">("latest");
 
-  const visitedCountries = useMemo(() => {
-    const set = new Set<string>();
-    for (const p of posts) if (p.country) set.add(p.country);
-    return Array.from(set);
-  }, [posts]);
-
   const grouped = useMemo(() => {
     const map = new Map<string, Post[]>();
     for (const p of posts) {
       const c = (p.country || "Other").trim();
       map.set(c, [...(map.get(c) ?? []), p]);
     }
+
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([country, posts]) => ({ country, posts }));
   }, [posts]);
 
+  // Countries used by globe
+  const visitedCountries = useMemo(
+    () =>
+      Array.from(
+        new Set(posts.map((p) => p.country).filter(Boolean) as string[])
+      ),
+    [posts]
+  );
+
   return (
     <main className="min-h-screen text-[hsl(var(--text))]">
       <div className="mx-auto max-w-5xl px-5 py-10">
-        {/* HERO */}
-        <header className="mb-10">
-          {/* Globe first */}
-          <div className="flex justify-center">
+
+        {/* HERO SECTION */}
+        <section className="mb-10 grid grid-cols-1 items-center gap-8 md:grid-cols-2">
+
+          {/* Left text */}
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">
+              Stories and photos from the road.
+            </h2>
+
+            <div className="mt-4">
+              <ModeToggle mode={mode} setMode={setMode} />
+            </div>
+          </div>
+
+          {/* Right globe */}
+          <div className="flex justify-center md:justify-end">
             <HeroGlobe visitedCountries={visitedCountries} />
           </div>
+        </section>
 
-          {/* Then the title + toggle */}
-          <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold tracking-tight text-[hsl(var(--text))]">
-                Stories and photos from the road.
-              </h2>
-            </div>
-
-            <ModeToggle mode={mode} setMode={setMode} />
-          </div>
-        </header>
-
+        {/* CONTENT */}
         <div className="transition-opacity duration-200">
           {mode === "latest" ? (
             <section className="grid gap-6 md:grid-cols-2">
