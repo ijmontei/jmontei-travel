@@ -13,7 +13,7 @@ async function handler(req: NextRequest) {
   const slug = doc?.slug?.current || doc?.slug || null;
 
   revalidatePath("/");
-
+  revalidatePath("/post");
   if (slug) revalidatePath(`/post/${slug}`);
 
   return NextResponse.json({
