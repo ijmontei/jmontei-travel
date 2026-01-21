@@ -15,11 +15,12 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
         initial={{ opacity: 0, y: 0, filter: "blur(1px)" }}
         animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
         exit={{ opacity: 0, y: 0, filter: "blur(1px)" }}
+        /*
         transition={
           shouldReduceMotion
             ? { duration: 0 }
             : { duration: 0.4, ease: "easeOut" }
-        }
+        }*/
       >
         {children}
       </motion.div>

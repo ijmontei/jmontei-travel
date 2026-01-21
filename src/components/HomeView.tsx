@@ -73,7 +73,7 @@ export function HomeView({ posts }: { posts: Post[] }) {
     <main className="min-h-screen text-[hsl(var(--text))]">
       <div className="mx-auto max-w-5xl px-5 py-10">
         {/* HERO SECTION */}
-        <header className="mb-4">
+        <header className="mb-0">
           {/* Globe first (hero centerpiece) */}
           <div className="flex justify-center">
             <HeroGlobe visitedCountries={visitedCountries} currentCountry={currentCountry} />
