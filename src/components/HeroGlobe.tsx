@@ -239,7 +239,7 @@ export function HeroGlobe({ visitedCountries, currentCountry }: Props) {
   }, [currentName, features, projection, center, radius]);
 
   return (
-    <div className="mt-2">
+    <div className="mt-0">
       <div className="relative w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] md:w-[320px] md:h-[320px] mx-auto">
         <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full block">
           <defs>

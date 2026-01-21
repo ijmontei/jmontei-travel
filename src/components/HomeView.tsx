@@ -62,26 +62,25 @@ export function HomeView({ posts }: { posts: Post[] }) {
 
   // Countries used by globe
   const visitedCountries = useMemo(
-    () =>
-      Array.from(
-        new Set(posts.map((p) => p.country).filter(Boolean) as string[])
-      ),
+    () => Array.from(new Set(posts.map((p) => p.country).filter(Boolean) as string[])),
     [posts]
   );
+
+  // Current country = latest post country (posts are newest-first)
+  const currentCountry = posts?.[0]?.country ?? null;
 
   return (
     <main className="min-h-screen text-[hsl(var(--text))]">
       <div className="mx-auto max-w-5xl px-5 py-10">
-
         {/* HERO SECTION */}
-        <header className="mb-10">
+        <header className="mb-4">
           {/* Globe first (hero centerpiece) */}
           <div className="flex justify-center">
-            <HeroGlobe visitedCountries={visitedCountries} />
+            <HeroGlobe visitedCountries={visitedCountries} currentCountry={currentCountry} />
           </div>
 
           {/* Then headline + toggle */}
-          <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="mt-3 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <h2 className="text-xl font-semibold tracking-tight text-[hsl(var(--text))]">
                 Stories and photos from the road.
