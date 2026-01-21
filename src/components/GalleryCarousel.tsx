@@ -79,16 +79,26 @@ export function GalleryCarousel({ title = "Gallery", images }: Props) {
                 <CarouselItem key={img?._key ?? idx}>
                   <figure className="rounded-2xl border bg-zinc-50 overflow-hidden">
                     {/* Fixed stage height; contain = no cropping */}
-                    <div className="relative h-[420px] sm:h-[520px] bg-zinc-100">
-                      <Image
-                        src={url}
-                        alt={img?.alt || `Photo ${idx + 1}`}
-                        fill
-                        className="object-contain"
-                        sizes="(max-width: 768px) 100vw, 768px"
-                        priority={idx === 0}
-                      />
-                    </div>
+                    <div className="relative h-[420px] sm:h-[520px] overflow-hidden">
+                        {/* Blurred background layer */}
+                        <Image
+                            src={url}
+                            alt=""
+                            fill
+                            className="object-cover scale-110 blur-2xl opacity-20"
+                            aria-hidden
+                        />
+
+                        {/* Main image (no crop) */}
+                        <Image
+                            src={url}
+                            alt={img?.alt || `Photo ${idx + 1}`}
+                            fill
+                            className="object-contain"
+                            sizes="(max-width: 768px) 100vw, 768px"
+                            priority={idx === 0}
+                        />
+                        </div>
 
                     {img?.caption ? (
                       <figcaption className="px-4 py-3 text-sm text-zinc-600">
