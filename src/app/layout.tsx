@@ -16,14 +16,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AmbientBackground />
 
         <div className="mx-auto max-w-4xl px-5">
-          <header className="py-10 flex items-center justify-between">
-            <a
-              href="/"
-              className="font-semibold tracking-tight text-xl hover:opacity-90 transition"
-            >
-              Jovan &amp; Amanda&apos;s Travels
-            </a>
-          </header>
+        <header className="pt-10 pb-6 flex justify-center">
+          <a
+            href="/"
+            className="font-semibold tracking-tight text-xl md:text-2xl hover:opacity-90 transition text-center"
+          >
+            Jovan &amp; Amanda&apos;s Travels
+          </a>
+        </header>
 
           <main className="pb-20">
             <PageTransition>{children}</PageTransition>

@@ -226,14 +226,14 @@ export function HeroGlobe({ visitedCountries }: Props) {
 
             {/* Soft outer shadow */}
             <filter id="sphereShadow" x="-25%" y="-25%" width="150%" height="150%">
-              <feDropShadow
-                dx="0"
-                dy="10"
-                stdDeviation="12"
-                floodColor="#000"
-                floodOpacity="0.28"
-              />
-            </filter>
+                <feDropShadow
+                    dx="0"
+                    dy="6"
+                    stdDeviation="8"
+                    floodColor="#000"
+                    floodOpacity="0.12"
+                />
+                </filter>
           </defs>
 
           {/* STARFIELD BEHIND THE SPHERE */}
