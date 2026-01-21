@@ -1,4 +1,5 @@
 import { defineField, defineType } from "sanity";
+import { GalleryInput } from "../components/GalleryInput"
 
 export const post = defineType({
   name: "post",
@@ -60,6 +61,7 @@ export const post = defineType({
       title: "Gallery",
       type: "array",
       of: [{ type: "image", options: { hotspot: true } }],
+      components: { input: GalleryInput },
     }),
   ],
 });
