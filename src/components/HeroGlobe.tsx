@@ -131,15 +131,23 @@ export function HeroGlobe({ visitedCountries, currentCountry }: Props) {
   }, []);
 
   // smooth spin (+20% faster)
-  useEffect(() => {
-    let raf = 0;
-    const tick = () => {
-      setRotation((r) => (r + 0.5) % 360); 
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
+    useEffect(() => {
+        const SPEED = 30; // degrees per second (≈ your 0.5 @ 60fps)
+    
+        let raf = 0;
+        let last = performance.now();
+    
+        const tick = (now: number) => {
+        const dt = (now - last) / 1000;
+        last = now;
+    
+        setRotation((r) => (r + SPEED * dt) % 360);
+        raf = requestAnimationFrame(tick);
+        };
+    
+        raf = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(raf);
+    }, []);
 
   const visitedSet = useMemo(() => {
     const set = new Set<string>();
