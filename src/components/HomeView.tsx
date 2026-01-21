@@ -21,7 +21,7 @@ function ModeToggle({
         className={[
           "rounded-full px-4 py-2 text-sm font-medium transition",
           mode === "latest"
-            ? "bg-[#0f274f] text-[#f5de88] shadow-sm"
+            ? "bg-[#d5d4ce] text-[#f5de88] shadow-sm"
             : "text-[hsl(var(--text))] hover:bg-black/5",
         ].join(" ")}
       >
@@ -34,7 +34,7 @@ function ModeToggle({
         className={[
           "rounded-full px-4 py-2 text-sm font-medium transition",
           mode === "country" 
-            ? "bg-[#0f274f] text-[#f5de88] shadow-sm"
+            ? "bg-[#d5d4ce] text-[#f5de88] shadow-sm"
             : "text-[hsl(var(--text))] hover:bg-black/5",
         ].join(" ")}
       >
