@@ -16,7 +16,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "embla-carousel-react": "^8.6.0",
-    "framer-motion": "^12.27.5",
+    "framer-motion": "^12.28.1",
     "heic2any": "^0.0.4",
     "lucide-react": "^0.562.0",
     "next": "16.1.4",

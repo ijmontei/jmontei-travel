@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { PageTransition } from "@/components/PageTransition";
 import { AmbientBackground } from "@/components/AmbientBackground";
+
 
 export const metadata: Metadata = {
   title: "A + J Travels",
@@ -23,10 +25,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </a>
           </header>
 
-          <main className="pb-20">{children}</main>
+          <main className="pb-20">
+            <PageTransition>{children}</PageTransition>
+          </main>
 
           <footer className="py-10 text-sm text-[rgb(var(--muted))] border-t border-[rgb(var(--border))]">
-          
+            {/* optional footer content */}
           </footer>
         </div>
       </body>
