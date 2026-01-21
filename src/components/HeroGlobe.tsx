@@ -53,8 +53,7 @@ const COUNTRY_ALIASES: Record<string, string> = {
 };
 
 /**
- * Deterministic PRNG so lights don't "jump" each rerender
- * (based on a simple hash -> mulberry32)
+ * Deterministic PRNG so lights/stars don't "jump" on rerenders
  */
 function hashString(str: string) {
   let h = 2166136261;
@@ -78,7 +77,6 @@ export function HeroGlobe({ visitedCountries }: Props) {
   const [features, setFeatures] = useState<any[]>([]);
   const [rotation, setRotation] = useState(0);
 
-  // Internal draw size (scaled by CSS wrapper)
   const size = 320;
   const center = size / 2;
   const radius = size * 0.42;
@@ -98,11 +96,11 @@ export function HeroGlobe({ visitedCountries }: Props) {
     };
   }, []);
 
-  // spin
+  // smooth spin
   useEffect(() => {
     let raf = 0;
     const tick = () => {
-      setRotation((r) => (r + 0.16) % 360); // slightly slower & smoother
+      setRotation((r) => (r + 0.16) % 360);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -122,10 +120,9 @@ export function HeroGlobe({ visitedCountries }: Props) {
     return geoOrthographic()
       .scale(radius)
       .translate([center, center])
-      .rotate([0, -18]); // latitude tilt
+      .rotate([0, -18]);
   }, [center, radius]);
 
-  // equator spin
   projection.rotate([rotation, -18]);
 
   const pathGen = geoPath(projection);
@@ -137,7 +134,23 @@ export function HeroGlobe({ visitedCountries }: Props) {
   const border = "rgba(170, 195, 230, 0.14)";
   const glowGold = "#f5de88";
 
-  // Create a small set of "city lights" per visited country, deterministic
+  // Starfield behind the globe (subtle, deterministic)
+  const stars = useMemo(() => {
+    const rand = mulberry32(hashString("stars"));
+    const pts: { x: number; y: number; r: number; o: number }[] = [];
+    const n = 120;
+
+    for (let i = 0; i < n; i++) {
+      const x = rand() * size;
+      const y = rand() * size;
+      const r = 0.5 + rand() * 1.4;
+      const o = 0.03 + rand() * 0.12;
+      pts.push({ x, y, r, o });
+    }
+    return pts;
+  }, [size]);
+
+  // City lights per visited country (deterministic)
   const lightsByCountry = useMemo(() => {
     const out: Record<string, { x: number; y: number; r: number; o: number }[]> = {};
     for (const f of features) {
@@ -146,22 +159,15 @@ export function HeroGlobe({ visitedCountries }: Props) {
 
       const rand = mulberry32(hashString(name));
       const pts: { x: number; y: number; r: number; o: number }[] = [];
-
-      // fewer lights = cleaner/minimal. increase if you want more “city” feel.
       const n = 46;
 
       for (let i = 0; i < n; i++) {
-        // place within a generous bounding box; clipPath ensures they only appear on the country
         const x = center - radius + rand() * (radius * 2);
         const y = center - radius + rand() * (radius * 2);
-
-        // tiny radii + varied opacity
         const r = 0.6 + rand() * 1.3;
         const o = 0.08 + rand() * 0.22;
-
         pts.push({ x, y, r, o });
       }
-
       out[name] = pts;
     }
     return out;
@@ -179,7 +185,7 @@ export function HeroGlobe({ visitedCountries }: Props) {
               <stop offset="100%" stopColor="#02040a" stopOpacity="1" />
             </radialGradient>
 
-            {/* Terminator shading to sell the sphere */}
+            {/* Terminator shading */}
             <radialGradient id="terminator" cx="36%" cy="40%" r="80%">
               <stop offset="0%" stopColor="rgba(0,0,0,0)" />
               <stop offset="55%" stopColor="rgba(0,0,0,0.10)" />
@@ -200,47 +206,54 @@ export function HeroGlobe({ visitedCountries }: Props) {
               <stop offset="70%" stopColor="rgba(255,255,255,0)" />
             </radialGradient>
 
-            {/* Gold glow */}
+            {/* Gold glow (visited countries) */}
             <filter id="goldGlow" x="-60%" y="-60%" width="220%" height="220%">
-              <feGaussianBlur stdDeviation="2.4" result="blur" />
-              <feColorMatrix
-                in="blur"
-                type="matrix"
-                values="
-                  1 0 0 0 0
-                  0 1 0 0 0
-                  0 0 1 0 0
-                  0 0 0 0.9 0"
-                result="colored"
-              />
+              <feGaussianBlur stdDeviation="2.5" result="blur" />
               <feMerge>
-                <feMergeNode in="colored" />
+                <feMergeNode in="blur" />
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
 
-            {/* Softer light glow for “city lights” */}
+            {/* Light glow for speckles */}
             <filter id="lightGlow" x="-80%" y="-80%" width="260%" height="260%">
-              <feGaussianBlur stdDeviation="1.7" result="b" />
+              <feGaussianBlur stdDeviation="1.8" result="b" />
               <feMerge>
                 <feMergeNode in="b" />
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
 
-            {/* Subtle outer shadow */}
+            {/* Soft outer shadow */}
             <filter id="sphereShadow" x="-25%" y="-25%" width="150%" height="150%">
-              <feDropShadow dx="0" dy="10" stdDeviation="12" floodColor="#000" floodOpacity="0.28" />
+              <feDropShadow
+                dx="0"
+                dy="10"
+                stdDeviation="12"
+                floodColor="#000"
+                floodOpacity="0.28"
+              />
             </filter>
           </defs>
 
+          {/* STARFIELD BEHIND THE SPHERE */}
+          <g opacity={0.55}>
+            {stars.map((s, i) => (
+              <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#ffffff" opacity={s.o} />
+            ))}
+          </g>
+
           {/* Sphere base */}
-          <circle cx={center} cy={center} r={radius} fill="url(#oceanShade)" filter="url(#sphereShadow)" />
+          <circle
+            cx={center}
+            cy={center}
+            r={radius}
+            fill="url(#oceanShade)"
+            filter="url(#sphereShadow)"
+          />
 
-          {/* Atmosphere fill */}
+          {/* Atmosphere + spec */}
           <circle cx={center} cy={center} r={radius} fill="url(#atmo)" />
-
-          {/* Specular highlight */}
           <circle cx={center} cy={center} r={radius} fill="url(#spec)" />
 
           {/* Countries */}
@@ -254,7 +267,6 @@ export function HeroGlobe({ visitedCountries }: Props) {
 
             return (
               <g key={idx}>
-                {/* clip to country shape so lights don't spill outside */}
                 {isVisited ? (
                   <defs>
                     <clipPath id={clipId}>
@@ -263,24 +275,34 @@ export function HeroGlobe({ visitedCountries }: Props) {
                   </defs>
                 ) : null}
 
-                {/* Glowing visited land */}
+                {/* Breathing glow layer */}
                 {isVisited ? (
-                  <path d={d} fill={glowGold} opacity={0.78} filter="url(#goldGlow)" />
+                  <path
+                    d={d}
+                    fill={glowGold}
+                    opacity={0.55}
+                    className="visited-pulse"
+                    filter="url(#goldGlow)"
+                  />
                 ) : null}
 
-                {/* Base land + borders */}
+                {/* Base land */}
                 <path
                   d={d}
                   fill={isVisited ? glowGold : landBase}
-                  opacity={isVisited ? 0.88 : 1}
+                  opacity={isVisited ? 0.82 : 1}
                   stroke={border}
                   strokeWidth={0.7}
                   vectorEffect="non-scaling-stroke"
                 />
 
-                {/* City-light speckles for visited countries */}
+                {/* City lights */}
                 {isVisited && lightsByCountry[name]?.length ? (
-                  <g clipPath={`url(#${clipId})`} filter="url(#lightGlow)">
+                  <g
+                    clipPath={`url(#${clipId})`}
+                    filter="url(#lightGlow)"
+                    className="visited-pulse"
+                  >
                     {lightsByCountry[name].map((p, i) => (
                       <circle
                         key={i}
@@ -297,10 +319,10 @@ export function HeroGlobe({ visitedCountries }: Props) {
             );
           })}
 
-          {/* Terminator shading (dark side) */}
+          {/* Terminator shading */}
           <circle cx={center} cy={center} r={radius} fill="url(#terminator)" />
 
-          {/* Atmosphere rim (stroke) */}
+          {/* Atmosphere rim stroke */}
           <circle
             cx={center}
             cy={center}
@@ -311,7 +333,7 @@ export function HeroGlobe({ visitedCountries }: Props) {
             opacity={0.35}
           />
 
-          {/* Soft vignette at limb */}
+          {/* Limb vignette */}
           <circle
             cx={center}
             cy={center}
@@ -322,6 +344,32 @@ export function HeroGlobe({ visitedCountries }: Props) {
             opacity={0.72}
           />
         </svg>
+
+        {/* CSS for breathing pulse + reduced motion */}
+        <style jsx>{`
+          .visited-pulse {
+            animation: pulseGlow 4.6s ease-in-out infinite;
+            transform-origin: 50% 50%;
+          }
+
+          @keyframes pulseGlow {
+            0% {
+              opacity: 0.55;
+            }
+            50% {
+              opacity: 0.85;
+            }
+            100% {
+              opacity: 0.55;
+            }
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            .visited-pulse {
+              animation: none;
+            }
+          }
+        `}</style>
       </div>
     </div>
   );
