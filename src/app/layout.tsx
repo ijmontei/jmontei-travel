@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="pt-10 pb-6 flex justify-center">
           <a
             href="/"
-            className="font-semibold tracking-tight text-xl md:text-2xl hover:opacity-90 transition text-center"
+            className="font-semibold tracking-tight text-xl md:text-2xl hover:opacity-70 transition text-center"
           >
             Jovan &amp; Amanda&apos;s Travels
           </a>
