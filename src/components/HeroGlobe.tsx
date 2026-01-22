@@ -56,8 +56,7 @@ const COUNTRY_ALIASES: Record<string, string> = {
 
   "south korea": "korea, republic of",
   korea: "korea, republic of",
-  // fixed (your current string has a typo)
-  "north korea": "korea, democratic people's republic of",
+  "north korea": "korea, democratic people's democratic republic of",
 };
 
 /** Deterministic PRNG so lights/stars don't jump */
@@ -113,11 +112,7 @@ function centroidOfFeature(f: any): [number, number] | null {
   return [sx / coords.length, sy / coords.length];
 }
 
-export function HeroGlobe({
-  visitedCountries,
-  currentCountry,
-  routeCountries,
-}: Props) {
+export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: Props) {
   const [features, setFeatures] = useState<any[]>([]);
   const [rotation, setRotation] = useState(0);
 
@@ -192,10 +187,7 @@ export function HeroGlobe({
   const visitedBorder = "#945f10";
 
   // View center lon/lat approx for rotate([rotation, tilt]) is [-rotation, -tilt]
-  const viewCenterLonLat = useMemo<[number, number]>(
-    () => [-rotation, -tilt],
-    [rotation]
-  );
+  const viewCenterLonLat = useMemo<[number, number]>(() => [-rotation, -tilt], [rotation]);
 
   // Starfield
   const stars = useMemo(() => {
@@ -215,10 +207,7 @@ export function HeroGlobe({
 
   // City lights per visited country
   const lightsByCountry = useMemo(() => {
-    const out: Record<
-      string,
-      { x: number; y: number; r: number; o: number }[]
-    > = {};
+    const out: Record<string, { x: number; y: number; r: number; o: number }[]> = {};
 
     for (const f of features) {
       const name = normalizeCountryName(f?.properties?.name || "");
@@ -328,8 +317,7 @@ export function HeroGlobe({
       if (pts.length < 2) continue;
 
       const d =
-        "M " +
-        pts.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join(" L ");
+        "M " + pts.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join(" L ");
 
       segs.push({ d, t });
     }
@@ -359,12 +347,6 @@ export function HeroGlobe({
 
     return nodes;
   }, [routeLonLat, projection, viewCenterLonLat]);
-
-  // ---- Gravity well geometry (under the globe) ----
-  const wellCx = center;
-  const wellCy = center + radius * 1.03; // push it beneath the sphere
-  const wellRx = radius * 1.05;
-  const wellRy = radius * 0.34;
 
   return (
     <div className="mt-0">
@@ -410,11 +392,11 @@ export function HeroGlobe({
 
             {/* Dark gold outline glow (visited borders) */}
             <filter id="goldBorderGlow" x="-70%" y="-70%" width="240%" height="240%">
-              <feGaussianBlur stdDeviation="1.25" result="b" />
-              <feMerge>
+            <feGaussianBlur stdDeviation="1.25" result="b" />
+            <feMerge>
                 <feMergeNode in="b" />
                 <feMergeNode in="SourceGraphic" />
-              </feMerge>
+            </feMerge>
             </filter>
 
             {/* Light glow for speckles */}
@@ -463,51 +445,6 @@ export function HeroGlobe({
                 floodOpacity="0.10"
               />
             </filter>
-
-            {/* --- GRAVITY WELL: warped distortion ONLY UNDER the planet --- */}
-            <radialGradient id="wellFill" cx="50%" cy="48%" r="62%">
-              <stop offset="0%" stopColor="rgba(0,0,0,0.30)" />
-              <stop offset="40%" stopColor="rgba(0,0,0,0.15)" />
-              <stop offset="72%" stopColor="rgba(0,0,0,0.06)" />
-              <stop offset="100%" stopColor="rgba(0,0,0,0)" />
-            </radialGradient>
-
-            <radialGradient id="wellRim" cx="50%" cy="48%" r="70%">
-              <stop offset="72%" stopColor="rgba(255,255,255,0)" />
-              <stop offset="86%" stopColor="rgba(255,255,255,0.10)" />
-              <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-            </radialGradient>
-
-            <filter id="gravityWarp" x="-40%" y="-60%" width="180%" height="220%">
-              <feTurbulence
-                type="fractalNoise"
-                baseFrequency="0.012"
-                numOctaves="2"
-                seed="9"
-                result="noise"
-              >
-                <animate
-                  attributeName="baseFrequency"
-                  dur="11s"
-                  values="0.010;0.014;0.010"
-                  repeatCount="indefinite"
-                />
-              </feTurbulence>
-
-              {/* Warps the ellipse slightly so it feels like a “well” */}
-              <feDisplacementMap
-                in="SourceGraphic"
-                in2="noise"
-                scale="16"
-                xChannelSelector="R"
-                yChannelSelector="G"
-              />
-            </filter>
-
-            {/* soften edges */}
-            <filter id="wellSoft" x="-60%" y="-80%" width="220%" height="260%">
-              <feGaussianBlur stdDeviation="2.4" />
-            </filter>
           </defs>
 
           {/* STARFIELD */}
@@ -515,21 +452,6 @@ export function HeroGlobe({
             {stars.map((s, i) => (
               <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#ffffff" opacity={s.o} />
             ))}
-          </g>
-
-          {/* GRAVITY WELL (BEHIND THE SPHERE, UNDER IT ONLY) */}
-          <g opacity={0.26} filter="url(#wellSoft)">
-            <g filter="url(#gravityWarp)">
-              <ellipse cx={wellCx} cy={wellCy} rx={wellRx} ry={wellRy} fill="url(#wellFill)" />
-              <ellipse
-                cx={wellCx}
-                cy={wellCy}
-                rx={wellRx}
-                ry={wellRy}
-                fill="url(#wellRim)"
-                opacity={0.55}
-              />
-            </g>
           </g>
 
           {/* Sphere base */}
@@ -662,14 +584,18 @@ export function HeroGlobe({
 
                 {/* City lights */}
                 {isVisited && lightsByCountry[name]?.length ? (
-                  <g clipPath={`url(#${clipId})`} filter="url(#lightGlow)" className="visited-pulse">
+                  <g
+                    clipPath={`url(#${clipId})`}
+                    filter="url(#lightGlow)"
+                    className="visited-pulse"
+                  >
                     {lightsByCountry[name].map((p, i) => (
                       <circle
                         key={i}
                         cx={p.x}
                         cy={p.y}
                         r={p.r}
-                        fill={glowGold}   // ✅ fixed (you had "#ff0000")
+                        fill={"#ff0000"}
                         opacity={p.o}
                       />
                     ))}
@@ -681,7 +607,10 @@ export function HeroGlobe({
 
           {/* CURRENT LOCATION PIN */}
           {currentPoint ? (
-            <g className="current-pin" transform={`translate(${currentPoint.x}, ${currentPoint.y})`}>
+            <g
+              className="current-pin"
+              transform={`translate(${currentPoint.x}, ${currentPoint.y})`}
+            >
               <circle
                 r="6.25"
                 fill="transparent"
@@ -705,6 +634,7 @@ export function HeroGlobe({
             transform-origin: 50% 50%;
           }
 
+          /* Neon border breath (subtle) */
           .visited-border-pulse {
             animation: borderPulse 4.6s ease-in-out infinite;
           }
@@ -743,6 +673,7 @@ export function HeroGlobe({
             100% { transform: scale(1.45); opacity: 0; }
           }
 
+          /* TRAVEL PULSE */
           .travel-pulse {
             stroke-dasharray: 6 18;
             animation: dashMove 3s linear infinite;
@@ -752,6 +683,7 @@ export function HeroGlobe({
             to { stroke-dashoffset: -140; }
           }
 
+          /* Stagger */
           ${Array.from({ length: 24 })
             .map((_, i) => `.travel-pulse-${i} { animation-delay: -${i * 0.18}s; }`)
             .join("\n")}
