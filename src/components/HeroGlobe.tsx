@@ -183,7 +183,8 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
   const glowGold = "#f5de88";
 
   // Constellation neon blue (RGB string used in rgba())
-  const routeColor = "80, 200, 255";
+  const routeColor = "80, 200, 255"; // neon blue
+  const visitedBorder = `rgba(${routeColor},0.65)`; // base visited border
 
   // View center lon/lat approx for rotate([rotation, tilt]) is [-rotation, -tilt]
   const viewCenterLonLat = useMemo<[number, number]>(() => [-rotation, -tilt], [rotation]);
@@ -389,6 +390,15 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
               </feMerge>
             </filter>
 
+            {/* Neon blue border glow (visited outline) */}
+            <filter id="blueGlow" x="-70%" y="-70%" width="240%" height="240%">
+              <feGaussianBlur stdDeviation="1.35" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+
             {/* Light glow for speckles */}
             <filter id="lightGlow" x="-80%" y="-80%" width="260%" height="260%">
               <feGaussianBlur stdDeviation="1.9" result="b" />
@@ -461,8 +471,8 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
           {routeSegments.length ? (
             <g filter="url(#routeGlow)">
               {routeSegments.map(({ d, t }, i) => {
-                const alpha = 0.3 + 0.04 * t; // 0.18..0.22
-                const w = 1.0 + 0.2 * t; // 1.0..1.2
+                const alpha = 0.3 + 0.04 * t; // newest ~20% more pop
+                const w = 1.0 + 0.2 * t;
                 return (
                   <path
                     key={`route-${i}`}
@@ -475,12 +485,12 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
                 );
               })}
 
-              {/* Pulse overlay: subtle, mostly for newer legs */}
+              {/* Pulse overlay */}
               {routeSegments.map(({ d, t }, i) => {
                 const show = t > 0.35;
                 if (!show) return null;
 
-                const pulseAlpha = 0.04 + 0.06 * t; // subtle
+                const pulseAlpha = 0.04 + 0.06 * t;
                 return (
                   <path
                     key={`pulse-${i}`}
@@ -496,30 +506,27 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
             </g>
           ) : null}
 
-          {/* Node stars at each stop (neon blue) */}
+          {/* Node stars */}
           {routeNodes.length ? (
             <g filter="url(#nodeGlow)">
               {routeNodes.map((n, i) => {
-                const r = 1.3 + 0.3 * n.t; // subtle size boost
-                const a = 0.42 + 0.08 * n.t; // subtle brightness boost
+                const r = 1.3 + 0.3 * n.t;
+                const a = 0.42 + 0.08 * n.t;
 
                 return (
                   <g key={`node-${i}`}>
-                    {/* halo */}
                     <circle
                       cx={n.x}
                       cy={n.y}
                       r={r * 2.2}
                       fill={`rgba(${routeColor},${0.10 + 0.05 * n.t})`}
                     />
-                    {/* core */}
                     <circle
                       cx={n.x}
                       cy={n.y}
                       r={r}
                       fill={`rgba(${routeColor},${a})`}
                     />
-                    {/* tiny spec */}
                     <circle
                       cx={n.x - 0.6}
                       cy={n.y - 0.6}
@@ -552,7 +559,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
                   </defs>
                 ) : null}
 
-                {/* Breathing glow layer */}
+                {/* Breathing gold glow */}
                 {isVisited ? (
                   <path
                     d={d}
@@ -563,13 +570,15 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
                   />
                 ) : null}
 
-                {/* Base land */}
+                {/* Land + borders */}
                 <path
                   d={d}
                   fill={isVisited ? glowGold : landBase}
                   opacity={isVisited ? 0.82 : 1}
-                  stroke={border}
-                  strokeWidth={0.7}
+                  stroke={isVisited ? visitedBorder : border}
+                  strokeWidth={isVisited ? 1.05 : 0.7}
+                  filter={isVisited ? "url(#blueGlow)" : undefined}
+                  className={isVisited ? "visited-border-pulse" : undefined}
                   vectorEffect="non-scaling-stroke"
                 />
 
@@ -598,7 +607,10 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
           {/* CURRENT LOCATION PIN */}
           {currentPoint ? (
-            <g className="current-pin" transform={`translate(${currentPoint.x}, ${currentPoint.y})`}>
+            <g
+              className="current-pin"
+              transform={`translate(${currentPoint.x}, ${currentPoint.y})`}
+            >
               <circle
                 r="6.25"
                 fill="transparent"
@@ -622,10 +634,21 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
             transform-origin: 50% 50%;
           }
 
+          /* Neon border breath (subtle) */
+          .visited-border-pulse {
+            animation: borderPulse 4.6s ease-in-out infinite;
+          }
+
           @keyframes pulseGlow {
             0% { opacity: 0.55; }
             50% { opacity: 0.88; }
             100% { opacity: 0.55; }
+          }
+
+          @keyframes borderPulse {
+            0% { stroke-opacity: 0.55; }
+            50% { stroke-opacity: 0.92; }
+            100% { stroke-opacity: 0.55; }
           }
 
           .current-pin {
@@ -660,13 +683,14 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
             to { stroke-dashoffset: -140; }
           }
 
-          /* Stagger so legs feel alive */
+          /* Stagger */
           ${Array.from({ length: 24 })
             .map((_, i) => `.travel-pulse-${i} { animation-delay: -${i * 0.18}s; }`)
             .join("\n")}
 
           @media (prefers-reduced-motion: reduce) {
             .visited-pulse,
+            .visited-border-pulse,
             .current-pin,
             .pin-ring,
             .travel-pulse {
