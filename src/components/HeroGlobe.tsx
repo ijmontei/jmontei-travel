@@ -1,13 +1,18 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { geoOrthographic, geoPath, geoDistance, geoInterpolate } from "d3-geo";
+import {
+  geoOrthographic,
+  geoPath,
+  geoDistance,
+  geoInterpolate,
+} from "d3-geo";
 import { feature } from "topojson-client";
 
 type Props = {
   visitedCountries: string[];
   currentCountry?: string | null;
-  routeCountries?: string[]; // NEW
+  routeCountries?: string[]; // for constellation route (ordered oldest->newest)
 };
 
 function normalizeCountryName(name: string) {
@@ -107,7 +112,11 @@ function centroidOfFeature(f: any): [number, number] | null {
   return [sx / coords.length, sy / coords.length];
 }
 
-export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: Props) {
+export function HeroGlobe({
+  visitedCountries,
+  currentCountry,
+  routeCountries,
+}: Props) {
   const [features, setFeatures] = useState<any[]>([]);
   const [rotation, setRotation] = useState(0);
 
@@ -133,13 +142,14 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
   // Smooth spin (time-based, consistent across mobile/desktop)
   useEffect(() => {
-    const SPEED = 25; // degrees per second (your current feel)
+    const SPEED = 25; // degrees per second
     let raf = 0;
     let last = performance.now();
 
     const tick = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
+
       setRotation((r) => (r + SPEED * dt) % 360);
       raf = requestAnimationFrame(tick);
     };
@@ -161,7 +171,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
     return geoOrthographic()
       .scale(radius)
       .translate([center, center])
-      .clipAngle(90); // far side clips out
+      .clipAngle(90);
   }, [center, radius]);
 
   // apply rotation for this render
@@ -169,14 +179,17 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
   const pathGen = geoPath(projection);
 
-  // Tuned colors
+  // Palette
   const oceanA = "#050b15";
   const oceanB = "#0b1a33";
   const landBase = "rgba(255,255,255,0.04)";
   const border = "rgba(170, 195, 230, 0.14)";
   const glowGold = "#f5de88";
 
-  // Starfield behind the globe (subtle, deterministic)
+  // View center lon/lat approx for rotate([rotation, tilt]) is [-rotation, -tilt]
+  const viewCenterLonLat = useMemo<[number, number]>(() => [-rotation, -tilt], [rotation]);
+
+  // Starfield
   const stars = useMemo(() => {
     const rand = mulberry32(hashString("stars"));
     const pts: { x: number; y: number; r: number; o: number }[] = [];
@@ -192,7 +205,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
     return pts;
   }, [size]);
 
-  // City lights per visited country (deterministic)
+  // City lights per visited country
   const lightsByCountry = useMemo(() => {
     const out: Record<string, { x: number; y: number; r: number; o: number }[]> = {};
 
@@ -232,24 +245,21 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
       const name = normalizeCountryName(f?.properties?.name || "");
       return name === currentName;
     });
-
     if (!match) return null;
 
     const lonLat = centroidOfFeature(match);
     if (!lonLat) return null;
 
-    // center lon/lat approx for rotate([rotation, tilt]) is [-rotation, -tilt]
-    const centerLonLat: [number, number] = [-rotation, -tilt];
-    const ang = geoDistance(lonLat, centerLonLat); // radians
-    if (ang > Math.PI / 2) return null; // behind the globe
+    const ang = geoDistance(lonLat, viewCenterLonLat); // radians
+    if (ang > Math.PI / 2) return null;
 
     const p = projection(lonLat);
     if (!p) return null;
 
     return { x: p[0], y: p[1] };
-  }, [currentName, features, projection, rotation, tilt]);
+  }, [currentName, features, projection, viewCenterLonLat]);
 
-  // --- CONSTELLATION ROUTE (curved arcs between consecutive routeCountries) ---
+  // Route: convert ordered country list -> lon/lat points (centroids)
   const routeLonLat = useMemo(() => {
     if (!routeCountries?.length || !features.length) return [];
 
@@ -275,33 +285,68 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
     return out;
   }, [routeCountries, features]);
 
-  const routePaths = useMemo(() => {
+  // Build route segments with recency weighting + screen-space path
+  const routeSegments = useMemo(() => {
     if (routeLonLat.length < 2) return [];
 
-    const segments: string[] = [];
     const steps = 42;
+    const segs: { d: string; t: number }[] = [];
+    const total = routeLonLat.length - 1;
 
-    for (let i = 0; i < routeLonLat.length - 1; i++) {
+    for (let i = 0; i < total; i++) {
       const a = routeLonLat[i];
       const b = routeLonLat[i + 1];
 
-      const interp = geoInterpolate(a as any, b as any);
+      // recency factor: 0 oldest -> 1 newest
+      const t = total <= 1 ? 1 : i / (total - 1);
 
+      const interp = geoInterpolate(a as any, b as any);
       const pts: Array<[number, number]> = [];
-      for (let t = 0; t <= steps; t++) {
-        const ll = interp(t / steps) as [number, number];
+
+      for (let s = 0; s <= steps; s++) {
+        const ll = interp(s / steps) as [number, number];
+
+        // drop points behind globe to avoid “ghost” lines
+        const ang = geoDistance(ll, viewCenterLonLat);
+        if (ang > Math.PI / 2) continue;
+
         const p = projection(ll as any) as [number, number] | null;
         if (p) pts.push(p);
       }
 
       if (pts.length < 2) continue;
 
-      const d = "M " + pts.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join(" L ");
-      segments.push(d);
+      const d =
+        "M " + pts.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join(" L ");
+
+      segs.push({ d, t });
     }
 
-    return segments;
-  }, [routeLonLat, projection, rotation]);
+    return segs;
+  }, [routeLonLat, projection, viewCenterLonLat]);
+
+  // Node stars at each route stop (front hemisphere only), brightness by recency
+  const routeNodes = useMemo(() => {
+    if (!routeLonLat.length) return [];
+
+    const nodes: { x: number; y: number; t: number }[] = [];
+    const total = Math.max(routeLonLat.length - 1, 1);
+
+    for (let i = 0; i < routeLonLat.length; i++) {
+      const ll = routeLonLat[i];
+      const t = routeLonLat.length <= 1 ? 1 : i / total; // 0 oldest -> 1 newest
+
+      const ang = geoDistance(ll, viewCenterLonLat);
+      if (ang > Math.PI / 2) continue;
+
+      const p = projection(ll as any);
+      if (!p) continue;
+
+      nodes.push({ x: p[0], y: p[1], t });
+    }
+
+    return nodes;
+  }, [routeLonLat, projection, viewCenterLonLat]);
 
   return (
     <div className="mt-0">
@@ -372,6 +417,15 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
               </feMerge>
             </filter>
 
+            {/* Node glow */}
+            <filter id="nodeGlow" x="-120%" y="-120%" width="340%" height="340%">
+              <feGaussianBlur stdDeviation="1.8" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+
             {/* Soft outer shadow */}
             <filter id="sphereShadow" x="-25%" y="-25%" width="150%" height="150%">
               <feDropShadow
@@ -392,35 +446,92 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
           </g>
 
           {/* Sphere base */}
-          <circle cx={center} cy={center} r={radius} fill="url(#oceanShade)" filter="url(#sphereShadow)" />
+          <circle
+            cx={center}
+            cy={center}
+            r={radius}
+            fill="url(#oceanShade)"
+            filter="url(#sphereShadow)"
+          />
 
           {/* Atmosphere + spec */}
           <circle cx={center} cy={center} r={radius} fill="url(#atmo)" />
           <circle cx={center} cy={center} r={radius} fill="url(#spec)" />
 
-          {/* CONSTELLATION ROUTE */}
-          {routePaths.length ? (
-            <g filter="url(#routeGlow)" opacity={0.95}>
-              {routePaths.map((d, i) => (
-                <path
-                  key={i}
-                  d={d}
-                  fill="none"
-                  stroke="rgba(245,222,136,0.30)"
-                  strokeWidth={1.2}
-                  strokeLinecap="round"
-                />
-              ))}
-              {routePaths.map((d, i) => (
-                <path
-                  key={`core-${i}`}
-                  d={d}
-                  fill="none"
-                  stroke="rgba(245,222,136,0.14)"
-                  strokeWidth={0.7}
-                  strokeLinecap="round"
-                />
-              ))}
+          {/* ROUTE: base lines (recency brighter/thicker) + faint pulse overlay */}
+          {routeSegments.length ? (
+            <g filter="url(#routeGlow)">
+              {routeSegments.map(({ d, t }, i) => {
+                // Older dimmer; newest brighter
+                const alpha = 0.10 + 0.28 * t; // 0.10..0.38
+                const w = 0.75 + 0.75 * t; // 0.75..1.50
+                return (
+                  <path
+                    key={`route-${i}`}
+                    d={d}
+                    fill="none"
+                    stroke={`rgba(245,222,136,${alpha})`}
+                    strokeWidth={w}
+                    strokeLinecap="round"
+                  />
+                );
+              })}
+
+              {/* Pulse overlay: strongest on newest legs */}
+              {routeSegments.map(({ d, t }, i) => {
+                const pulseAlpha = 0.06 + 0.18 * t; // subtle
+                const show = t > 0.25; // only later part of journey gets pulse
+                if (!show) return null;
+
+                return (
+                  <path
+                    key={`pulse-${i}`}
+                    d={d}
+                    fill="none"
+                    stroke={`rgba(245,222,136,${pulseAlpha})`}
+                    strokeWidth={1.4}
+                    strokeLinecap="round"
+                    className={`travel-pulse travel-pulse-${i}`}
+                  />
+                );
+              })}
+            </g>
+          ) : null}
+
+          {/* Node stars at each stop (recency brighter/bigger) */}
+          {routeNodes.length ? (
+            <g filter="url(#nodeGlow)">
+              {routeNodes.map((n, i) => {
+                const r = 1.3 + 1.1 * n.t; // 1.3..2.4
+                const a = 0.22 + 0.55 * n.t; // 0.22..0.77
+
+                return (
+                  <g key={`node-${i}`}>
+                    {/* soft halo */}
+                    <circle
+                      cx={n.x}
+                      cy={n.y}
+                      r={r * 2.2}
+                      fill={`rgba(245,222,136,${0.08 + 0.12 * n.t})`}
+                    />
+                    {/* core star */}
+                    <circle
+                      cx={n.x}
+                      cy={n.y}
+                      r={r}
+                      fill={`rgba(245,222,136,${a})`}
+                    />
+                    {/* tiny spec */}
+                    <circle
+                      cx={n.x - 0.6}
+                      cy={n.y - 0.6}
+                      r={Math.max(0.55, r * 0.38)}
+                      fill="rgba(255,255,255,0.55)"
+                      opacity={0.55}
+                    />
+                  </g>
+                );
+              })}
             </g>
           ) : null}
 
@@ -466,9 +577,20 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
                 {/* City lights */}
                 {isVisited && lightsByCountry[name]?.length ? (
-                  <g clipPath={`url(#${clipId})`} filter="url(#lightGlow)" className="visited-pulse">
+                  <g
+                    clipPath={`url(#${clipId})`}
+                    filter="url(#lightGlow)"
+                    className="visited-pulse"
+                  >
                     {lightsByCountry[name].map((p, i) => (
-                      <circle key={i} cx={p.x} cy={p.y} r={p.r} fill={glowGold} opacity={p.o} />
+                      <circle
+                        key={i}
+                        cx={p.x}
+                        cy={p.y}
+                        r={p.r}
+                        fill={glowGold}
+                        opacity={p.o}
+                      />
                     ))}
                   </g>
                 ) : null}
@@ -478,7 +600,10 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
           {/* CURRENT LOCATION PIN */}
           {currentPoint ? (
-            <g className="current-pin" transform={`translate(${currentPoint.x}, ${currentPoint.y})`}>
+            <g
+              className="current-pin"
+              transform={`translate(${currentPoint.x}, ${currentPoint.y})`}
+            >
               <circle
                 r="6.25"
                 fill="transparent"
@@ -488,7 +613,12 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
                 className="pin-ring"
               />
               <circle r="2.625" fill="#ff3b3b" filter="url(#pinGlow)" />
-              <circle cx="-0.75" cy="-0.75" r="0.75" fill="rgba(255,255,255,0.78)" />
+              <circle
+                cx="-0.75"
+                cy="-0.75"
+                r="0.75"
+                fill="rgba(255,255,255,0.78)"
+              />
             </g>
           ) : null}
 
@@ -551,10 +681,32 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
             }
           }
 
+          /* TRAVEL PULSE */
+          .travel-pulse {
+            stroke-dasharray: 6 18;
+            animation: dashMove 2.6s linear infinite;
+          }
+
+          @keyframes dashMove {
+            to {
+              stroke-dashoffset: -120;
+            }
+          }
+
+          /* Slight staggering so multiple legs feel alive */
+          ${Array.from({ length: 24 })
+            .map(
+              (_, i) => `
+            .travel-pulse-${i} { animation-delay: -${i * 0.18}s; }
+          `
+            )
+            .join("\n")}
+
           @media (prefers-reduced-motion: reduce) {
             .visited-pulse,
             .current-pin,
-            .pin-ring {
+            .pin-ring,
+            .travel-pulse {
               animation: none;
             }
           }
