@@ -1,4 +1,4 @@
-// app/(whatever)/HomeView.tsx (or wherever your HomeView lives)
+// HomeView.tsx
 "use client";
 
 import { useMemo, useState } from "react";
@@ -61,13 +61,11 @@ export function HomeView({ posts }: { posts: Post[] }) {
       .map(([country, posts]) => ({ country, posts }));
   }, [posts]);
 
-  // Countries used by globe (visited = any country appearing in posts)
   const visitedCountries = useMemo(
     () => Array.from(new Set(posts.map((p) => p.country).filter(Boolean) as string[])),
     [posts]
   );
 
-  // Current country = latest post country (posts are newest-first)
   const currentCountry = posts?.[0]?.country ?? null;
 
   const routeCountries = useMemo(() => {
@@ -96,33 +94,39 @@ export function HomeView({ posts }: { posts: Post[] }) {
   return (
     <main className="min-h-screen text-[hsl(var(--text))]">
       <div className="mx-auto max-w-5xl px-5 py-10">
-        {/* HERO SECTION */}
         <header className="mb-2">
-          {/* Globe first (hero centerpiece) */}
           <div className="relative flex justify-center -mt-6">
-            {/* Gravitational “lens” warp behind the globe */}
+            {/* GRAVITY WELL (UNDER THE GLOBE ONLY) */}
             <div
               className="pointer-events-none absolute inset-0 flex items-center justify-center"
               aria-hidden
             >
+              {/* Positioning notes:
+                  - translateY pushes it BELOW the center of the globe
+                  - scaleY flattens into an ellipse
+              */}
               <svg
                 width="520"
                 height="520"
                 viewBox="0 0 520 520"
-                className="opacity-[0.18] sm:opacity-[0.16] md:opacity-[0.14]"
+                className="opacity-[0.26] sm:opacity-[0.22] md:opacity-[0.20]"
+                style={{
+                  transform: "translateY(92px) scaleY(0.62)",
+                }}
               >
                 <defs>
-                  <filter id="gravityWarp" x="-35%" y="-35%" width="170%" height="170%">
+                  {/* Subtle animated distortion */}
+                  <filter id="gravityWellWarp" x="-35%" y="-35%" width="170%" height="170%">
                     <feTurbulence
                       type="fractalNoise"
                       baseFrequency="0.012"
                       numOctaves="2"
-                      seed="2"
+                      seed="7"
                       result="noise"
                     >
                       <animate
                         attributeName="baseFrequency"
-                        dur="9s"
+                        dur="10s"
                         values="0.010;0.014;0.010"
                         repeatCount="indefinite"
                       />
@@ -131,21 +135,33 @@ export function HomeView({ posts }: { posts: Post[] }) {
                     <feDisplacementMap
                       in="SourceGraphic"
                       in2="noise"
-                      scale="16"
+                      scale="18"
                       xChannelSelector="R"
                       yChannelSelector="G"
                     />
                   </filter>
 
-                  <radialGradient id="lens" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="rgba(255,255,255,0.85)" />
-                    <stop offset="55%" stopColor="rgba(255,255,255,0.22)" />
+                  {/* Dark “dent” gradient */}
+                  <radialGradient id="wellFill" cx="50%" cy="46%" r="55%">
+                    <stop offset="0%" stopColor="rgba(0,0,0,0.30)" />
+                    <stop offset="38%" stopColor="rgba(0,0,0,0.16)" />
+                    <stop offset="70%" stopColor="rgba(0,0,0,0.06)" />
+                    <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+                  </radialGradient>
+
+                  {/* Slight bright rim to sell “warp” without becoming a halo */}
+                  <radialGradient id="wellRim" cx="50%" cy="46%" r="58%">
+                    <stop offset="72%" stopColor="rgba(255,255,255,0)" />
+                    <stop offset="86%" stopColor="rgba(255,255,255,0.10)" />
                     <stop offset="100%" stopColor="rgba(255,255,255,0)" />
                   </radialGradient>
                 </defs>
 
-                {/* lens shape */}
-                <circle cx="260" cy="260" r="175" fill="url(#lens)" filter="url(#gravityWarp)" />
+                {/* Only an ellipse under the globe */}
+                <g filter="url(#gravityWellWarp)">
+                  <circle cx="260" cy="260" r="175" fill="url(#wellFill)" />
+                  <circle cx="260" cy="260" r="175" fill="url(#wellRim)" opacity="0.55" />
+                </g>
               </svg>
             </div>
 
@@ -156,7 +172,6 @@ export function HomeView({ posts }: { posts: Post[] }) {
             />
           </div>
 
-          {/* Then headline + toggle */}
           <div className="mt-3 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <h2 className="text-xl font-semibold tracking-tight text-[hsl(var(--text))]">
@@ -168,7 +183,6 @@ export function HomeView({ posts }: { posts: Post[] }) {
           </div>
         </header>
 
-        {/* CONTENT */}
         <div className="transition-opacity duration-200">
           {mode === "latest" ? (
             <section className="grid gap-6 md:grid-cols-2">
