@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   geoOrthographic,
   geoPath,
@@ -78,6 +78,16 @@ function mulberry32(seed: number) {
   };
 }
 
+function clamp(v: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, v));
+}
+
+function getTouchDist(t1: Touch, t2: Touch) {
+  const dx = t1.clientX - t2.clientX;
+  const dy = t1.clientY - t2.clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
 /**
  * Quick centroid approximation for Polygon/MultiPolygon.
  * (Good enough for marker + route anchoring.)
@@ -112,13 +122,30 @@ function centroidOfFeature(f: any): [number, number] | null {
   return [sx / coords.length, sy / coords.length];
 }
 
-export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: Props) {
+export function HeroGlobe({
+  visitedCountries,
+  currentCountry,
+  routeCountries,
+}: Props) {
   const [features, setFeatures] = useState<any[]>([]);
   const [rotation, setRotation] = useState(0);
 
+  // --- Zoom state ---
+  const [zoom, setZoom] = useState(1);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const pinchDistRef = useRef<number | null>(null);
+
+  // Tuning
+  const ZOOM_MIN = 0.85;
+  const ZOOM_MAX = 2.4;
+
   const size = 320;
   const center = size / 2;
-  const radius = size * 0.42;
+
+  // Base radius; actual draw radius scales with zoom
+  const baseRadius = size * 0.42;
+  const radius = baseRadius * zoom;
+
   const tilt = -18; // degrees
 
   useEffect(() => {
@@ -154,6 +181,60 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  // --- Wheel + pinch listeners (non-passive so we can preventDefault on iOS/trackpads) ---
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      // We only want zoom, not page scroll, while pointer is over globe
+      e.preventDefault();
+
+      // Trackpads can send tiny deltas; wheels can send large ones.
+      // This keeps the feel stable across devices.
+      const delta = -e.deltaY * 0.0012;
+      setZoom((z) => clamp(z + delta, ZOOM_MIN, ZOOM_MAX));
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        pinchDistRef.current = getTouchDist(e.touches[0], e.touches[1]);
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && pinchDistRef.current != null) {
+        e.preventDefault();
+
+        const d = getTouchDist(e.touches[0], e.touches[1]);
+        const dd = d - pinchDistRef.current;
+        pinchDistRef.current = d;
+
+        // Pinch sensitivity: tuned for iOS + Android
+        const delta = dd * 0.003;
+        setZoom((z) => clamp(z + delta, ZOOM_MIN, ZOOM_MAX));
+      }
+    };
+
+    const onTouchEnd = () => {
+      pinchDistRef.current = null;
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("touchstart", onTouchStart, { passive: false });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd, { passive: false });
+    el.addEventListener("touchcancel", onTouchEnd, { passive: false });
+
+    return () => {
+      el.removeEventListener("wheel", onWheel as any);
+      el.removeEventListener("touchstart", onTouchStart as any);
+      el.removeEventListener("touchmove", onTouchMove as any);
+      el.removeEventListener("touchend", onTouchEnd as any);
+      el.removeEventListener("touchcancel", onTouchEnd as any);
+    };
+  }, []);
+
   const visitedSet = useMemo(() => {
     const set = new Set<string>();
     for (const c of visitedCountries || []) {
@@ -187,7 +268,10 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
   const visitedBorder = "#945f10";
 
   // View center lon/lat approx for rotate([rotation, tilt]) is [-rotation, -tilt]
-  const viewCenterLonLat = useMemo<[number, number]>(() => [-rotation, -tilt], [rotation]);
+  const viewCenterLonLat = useMemo<[number, number]>(
+    () => [-rotation, -tilt],
+    [rotation]
+  );
 
   // Starfield
   const stars = useMemo(() => {
@@ -207,7 +291,10 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
   // City lights per visited country
   const lightsByCountry = useMemo(() => {
-    const out: Record<string, { x: number; y: number; r: number; o: number }[]> = {};
+    const out: Record<
+      string,
+      { x: number; y: number; r: number; o: number }[]
+    > = {};
 
     for (const f of features) {
       const name = normalizeCountryName(f?.properties?.name || "");
@@ -220,9 +307,9 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
       for (let i = 0; i < n; i++) {
         const x = center - radius + rand() * (radius * 2);
         const y = center - radius + rand() * (radius * 2);
-        const r = 0.6 + rand() * 1.3;
+        const rr = 0.6 + rand() * 1.3;
         const o = 0.08 + rand() * 0.22;
-        pts.push({ x, y, r, o });
+        pts.push({ x, y, r: rr, o });
       }
       out[name] = pts;
     }
@@ -350,7 +437,14 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
   return (
     <div className="mt-0">
-      <div className="relative w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] md:w-[320px] md:h-[320px] mx-auto">
+      <div
+        ref={containerRef}
+        className="relative w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] md:w-[320px] md:h-[320px] mx-auto"
+        // critical: stops iOS/Android from treating pinches as page zoom/scroll
+        style={{ touchAction: "none" }}
+        aria-label="Interactive globe. Scroll or pinch to zoom."
+        title="Scroll/pinch to zoom"
+      >
         <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full block">
           <defs>
             {/* Ocean shading */}
@@ -392,11 +486,11 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
             {/* Dark gold outline glow (visited borders) */}
             <filter id="goldBorderGlow" x="-70%" y="-70%" width="240%" height="240%">
-            <feGaussianBlur stdDeviation="1.25" result="b" />
-            <feMerge>
+              <feGaussianBlur stdDeviation="1.25" result="b" />
+              <feMerge>
                 <feMergeNode in="b" />
                 <feMergeNode in="SourceGraphic" />
-            </feMerge>
+              </feMerge>
             </filter>
 
             {/* Light glow for speckles */}
@@ -620,7 +714,12 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
                 className="pin-ring"
               />
               <circle r="2.625" fill="#ff3b3b" filter="url(#pinGlow)" />
-              <circle cx="-0.75" cy="-0.75" r="0.75" fill="rgba(255,255,255,0.78)" />
+              <circle
+                cx="-0.75"
+                cy="-0.75"
+                r="0.75"
+                fill="rgba(255,255,255,0.78)"
+              />
             </g>
           ) : null}
 
@@ -634,21 +733,32 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
             transform-origin: 50% 50%;
           }
 
-          /* Neon border breath (subtle) */
           .visited-border-pulse {
             animation: borderPulse 4.6s ease-in-out infinite;
           }
 
           @keyframes pulseGlow {
-            0% { opacity: 0.55; }
-            50% { opacity: 0.88; }
-            100% { opacity: 0.55; }
+            0% {
+              opacity: 0.55;
+            }
+            50% {
+              opacity: 0.88;
+            }
+            100% {
+              opacity: 0.55;
+            }
           }
 
           @keyframes borderPulse {
-            0% { stroke-opacity: 0.55; }
-            50% { stroke-opacity: 0.92; }
-            100% { stroke-opacity: 0.55; }
+            0% {
+              stroke-opacity: 0.55;
+            }
+            50% {
+              stroke-opacity: 0.92;
+            }
+            100% {
+              stroke-opacity: 0.55;
+            }
           }
 
           .current-pin {
@@ -657,9 +767,15 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
           }
 
           @keyframes pinFade {
-            0% { opacity: 0.85; }
-            50% { opacity: 1; }
-            100% { opacity: 0.85; }
+            0% {
+              opacity: 0.85;
+            }
+            50% {
+              opacity: 1;
+            }
+            100% {
+              opacity: 0.85;
+            }
           }
 
           .pin-ring {
@@ -668,9 +784,18 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
           }
 
           @keyframes ringExpand {
-            0% { transform: scale(0.55); opacity: 0.75; }
-            70% { transform: scale(1.45); opacity: 0; }
-            100% { transform: scale(1.45); opacity: 0; }
+            0% {
+              transform: scale(0.55);
+              opacity: 0.75;
+            }
+            70% {
+              transform: scale(1.45);
+              opacity: 0;
+            }
+            100% {
+              transform: scale(1.45);
+              opacity: 0;
+            }
           }
 
           /* TRAVEL PULSE */
@@ -680,10 +805,11 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
           }
 
           @keyframes dashMove {
-            to { stroke-dashoffset: -140; }
+            to {
+              stroke-dashoffset: -140;
+            }
           }
 
-          /* Stagger */
           ${Array.from({ length: 24 })
             .map((_, i) => `.travel-pulse-${i} { animation-delay: -${i * 0.18}s; }`)
             .join("\n")}
