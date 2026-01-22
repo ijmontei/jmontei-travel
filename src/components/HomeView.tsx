@@ -60,7 +60,7 @@ export function HomeView({ posts }: { posts: Post[] }) {
       .map(([country, posts]) => ({ country, posts }));
   }, [posts]);
 
-  // Countries used by globe
+  // Countries used by globe (visited = any country appearing in posts)
   const visitedCountries = useMemo(
     () => Array.from(new Set(posts.map((p) => p.country).filter(Boolean) as string[])),
     [posts]
@@ -69,6 +69,29 @@ export function HomeView({ posts }: { posts: Post[] }) {
   // Current country = latest post country (posts are newest-first)
   const currentCountry = posts?.[0]?.country ?? null;
 
+      const routeCountries = useMemo(() => {
+        const sorted = [...posts]
+          .filter((p) => Boolean(p.publishedAt))
+          .sort(
+            (a, b) =>
+              new Date(a.publishedAt as string).getTime() -
+              new Date(b.publishedAt as string).getTime()
+          );
+      
+        const seen = new Set<string>();
+        const route: string[] = [];
+      
+        for (const p of sorted) {
+          const c = (p.country || "").trim();
+          if (!c) continue;
+          if (seen.has(c)) continue;
+          seen.add(c);
+          route.push(c);
+        }
+      
+        return route;
+      }, [posts]);
+
   return (
     <main className="min-h-screen text-[hsl(var(--text))]">
       <div className="mx-auto max-w-5xl px-5 py-10">
@@ -76,7 +99,11 @@ export function HomeView({ posts }: { posts: Post[] }) {
         <header className="mb-2">
           {/* Globe first (hero centerpiece) */}
           <div className="flex justify-center -mt-6">
-            <HeroGlobe visitedCountries={visitedCountries} currentCountry={currentCountry} />
+            <HeroGlobe
+              visitedCountries={visitedCountries}
+              currentCountry={currentCountry}
+              routeCountries={routeCountries}
+            />
           </div>
 
           {/* Then headline + toggle */}
