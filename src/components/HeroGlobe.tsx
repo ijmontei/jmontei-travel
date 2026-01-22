@@ -1,12 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  geoOrthographic,
-  geoPath,
-  geoDistance,
-  geoInterpolate,
-} from "d3-geo";
+import { geoOrthographic, geoPath, geoDistance, geoInterpolate } from "d3-geo";
 import { feature } from "topojson-client";
 
 type Props = {
@@ -130,24 +125,41 @@ export function HeroGlobe({
   const [features, setFeatures] = useState<any[]>([]);
   const [rotation, setRotation] = useState(0);
 
-  // --- Zoom state ---
+  // --------- Zoom/pan (map-like) ----------
   const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const zoomRef = useRef(1);
+  const panRef = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+  useEffect(() => {
+    panRef.current = pan;
+  }, [pan]);
+
   const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Pinch tracking
   const pinchDistRef = useRef<number | null>(null);
 
+  // Drag-to-rotate tracking
+  const draggingRef = useRef(false);
+  const dragStartXRef = useRef(0);
+  const dragStartRotRef = useRef(0);
+
   // Tuning
-  const ZOOM_MIN = 0.85;
-  const ZOOM_MAX = 2.4;
+  const ZOOM_MIN = 1; // contained: allow zooming out to exactly 1 only
+  const ZOOM_MAX = 2.6;
+  const ZOOM_SPIN_PAUSE_AT = 1.02; // when zoom > this, pause auto-spin
 
   const size = 320;
   const center = size / 2;
+  const baseRadius = size * 0.42; // fixed sphere radius (container-contained)
+  const tilt = -18;
 
-  // Base radius; actual draw radius scales with zoom
-  const baseRadius = size * 0.42;
-  const radius = baseRadius * zoom;
-
-  const tilt = -18; // degrees
-
+  // Load topojson
   useEffect(() => {
     let mounted = true;
 
@@ -163,9 +175,9 @@ export function HeroGlobe({
     };
   }, []);
 
-  // Smooth spin (time-based, consistent across mobile/desktop)
+  // Auto spin (paused when zoomed in or dragging)
   useEffect(() => {
-    const SPEED = 25; // degrees per second
+    const SPEED = 25; // deg/sec
     let raf = 0;
     let last = performance.now();
 
@@ -173,66 +185,18 @@ export function HeroGlobe({
       const dt = (now - last) / 1000;
       last = now;
 
-      setRotation((r) => (r + SPEED * dt) % 360);
+      const shouldSpin =
+        zoomRef.current <= ZOOM_SPIN_PAUSE_AT && !draggingRef.current;
+
+      if (shouldSpin) {
+        setRotation((r) => (r + SPEED * dt) % 360);
+      }
+
       raf = requestAnimationFrame(tick);
     };
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, []);
-
-  // --- Wheel + pinch listeners (non-passive so we can preventDefault on iOS/trackpads) ---
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const onWheel = (e: WheelEvent) => {
-      // We only want zoom, not page scroll, while pointer is over globe
-      e.preventDefault();
-
-      // Trackpads can send tiny deltas; wheels can send large ones.
-      // This keeps the feel stable across devices.
-      const delta = -e.deltaY * 0.0012;
-      setZoom((z) => clamp(z + delta, ZOOM_MIN, ZOOM_MAX));
-    };
-
-    const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 2) {
-        pinchDistRef.current = getTouchDist(e.touches[0], e.touches[1]);
-      }
-    };
-
-    const onTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 2 && pinchDistRef.current != null) {
-        e.preventDefault();
-
-        const d = getTouchDist(e.touches[0], e.touches[1]);
-        const dd = d - pinchDistRef.current;
-        pinchDistRef.current = d;
-
-        // Pinch sensitivity: tuned for iOS + Android
-        const delta = dd * 0.003;
-        setZoom((z) => clamp(z + delta, ZOOM_MIN, ZOOM_MAX));
-      }
-    };
-
-    const onTouchEnd = () => {
-      pinchDistRef.current = null;
-    };
-
-    el.addEventListener("wheel", onWheel, { passive: false });
-    el.addEventListener("touchstart", onTouchStart, { passive: false });
-    el.addEventListener("touchmove", onTouchMove, { passive: false });
-    el.addEventListener("touchend", onTouchEnd, { passive: false });
-    el.addEventListener("touchcancel", onTouchEnd, { passive: false });
-
-    return () => {
-      el.removeEventListener("wheel", onWheel as any);
-      el.removeEventListener("touchstart", onTouchStart as any);
-      el.removeEventListener("touchmove", onTouchMove as any);
-      el.removeEventListener("touchend", onTouchEnd as any);
-      el.removeEventListener("touchcancel", onTouchEnd as any);
-    };
   }, []);
 
   const visitedSet = useMemo(() => {
@@ -244,30 +208,29 @@ export function HeroGlobe({
     return set;
   }, [visitedCountries]);
 
+  // Projection is centered; zoom affects projection scale only.
   const projection = useMemo(() => {
     return geoOrthographic()
-      .scale(radius)
+      .scale(baseRadius * zoom)
       .translate([center, center])
       .clipAngle(90);
-  }, [center, radius]);
+  }, [baseRadius, zoom, center]);
 
   // apply rotation for this render
   projection.rotate([rotation, tilt]);
 
   const pathGen = geoPath(projection);
 
-  // Palette (globe)
+  // Palette
   const oceanA = "#050b15";
   const oceanB = "#0b1a33";
   const landBase = "rgba(255,255,255,0.04)";
   const border = "rgba(170, 195, 230, 0.14)";
   const glowGold = "#f5de88";
 
-  // Constellation neon blue (RGB string used in rgba())
-  const routeColor = "80, 200, 255"; // neon blue
+  const routeColor = "80, 200, 255";
   const visitedBorder = "#945f10";
 
-  // View center lon/lat approx for rotate([rotation, tilt]) is [-rotation, -tilt]
   const viewCenterLonLat = useMemo<[number, number]>(
     () => [-rotation, -tilt],
     [rotation]
@@ -304,9 +267,10 @@ export function HeroGlobe({
       const pts: { x: number; y: number; r: number; o: number }[] = [];
       const n = 46;
 
+      // generate in a box around the sphere; clipping will keep it inside
       for (let i = 0; i < n; i++) {
-        const x = center - radius + rand() * (radius * 2);
-        const y = center - radius + rand() * (radius * 2);
+        const x = center - baseRadius + rand() * (baseRadius * 2);
+        const y = center - baseRadius + rand() * (baseRadius * 2);
         const rr = 0.6 + rand() * 1.3;
         const o = 0.08 + rand() * 0.22;
         pts.push({ x, y, r: rr, o });
@@ -315,7 +279,7 @@ export function HeroGlobe({
     }
 
     return out;
-  }, [features, visitedSet, center, radius]);
+  }, [features, visitedSet, center, baseRadius]);
 
   // Current country normalized
   const currentName = useMemo(() => {
@@ -324,7 +288,6 @@ export function HeroGlobe({
     return COUNTRY_ALIASES[n] ?? n;
   }, [currentCountry]);
 
-  // Current country -> projected point, ONLY when on visible hemisphere
   const currentPoint = useMemo(() => {
     if (!currentName || !features.length) return null;
 
@@ -337,7 +300,7 @@ export function HeroGlobe({
     const lonLat = centroidOfFeature(match);
     if (!lonLat) return null;
 
-    const ang = geoDistance(lonLat, viewCenterLonLat); // radians
+    const ang = geoDistance(lonLat, viewCenterLonLat);
     if (ang > Math.PI / 2) return null;
 
     const p = projection(lonLat);
@@ -346,7 +309,7 @@ export function HeroGlobe({
     return { x: p[0], y: p[1] };
   }, [currentName, features, projection, viewCenterLonLat]);
 
-  // Route: country list -> lon/lat points (centroids)
+  // Route lon/lat points
   const routeLonLat = useMemo(() => {
     if (!routeCountries?.length || !features.length) return [];
 
@@ -372,7 +335,6 @@ export function HeroGlobe({
     return out;
   }, [routeCountries, features]);
 
-  // Build route segments with subtle recency scaling (newest only ~20% more)
   const routeSegments = useMemo(() => {
     if (routeLonLat.length < 2) return [];
 
@@ -383,8 +345,6 @@ export function HeroGlobe({
     for (let i = 0; i < total; i++) {
       const a = routeLonLat[i];
       const b = routeLonLat[i + 1];
-
-      // recency factor: 0 oldest -> 1 newest
       const t = total <= 1 ? 1 : i / (total - 1);
 
       const interp = geoInterpolate(a as any, b as any);
@@ -393,7 +353,6 @@ export function HeroGlobe({
       for (let s = 0; s <= steps; s++) {
         const ll = interp(s / steps) as [number, number];
 
-        // drop points behind globe to avoid “ghost” lines
         const ang = geoDistance(ll, viewCenterLonLat);
         if (ang > Math.PI / 2) continue;
 
@@ -412,7 +371,6 @@ export function HeroGlobe({
     return segs;
   }, [routeLonLat, projection, viewCenterLonLat]);
 
-  // Node stars at each route stop (front hemisphere only), subtle recency boost
   const routeNodes = useMemo(() => {
     if (!routeLonLat.length) return [];
 
@@ -421,7 +379,7 @@ export function HeroGlobe({
 
     for (let i = 0; i < routeLonLat.length; i++) {
       const ll = routeLonLat[i];
-      const t = routeLonLat.length <= 1 ? 1 : i / total; // 0 oldest -> 1 newest
+      const t = routeLonLat.length <= 1 ? 1 : i / total;
 
       const ang = geoDistance(ll, viewCenterLonLat);
       if (ang > Math.PI / 2) continue;
@@ -435,15 +393,187 @@ export function HeroGlobe({
     return nodes;
   }, [routeLonLat, projection, viewCenterLonLat]);
 
+  // ---- Zoom anchored to cursor / pinch midpoint ----
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const svgPointFromClient = (clientX: number, clientY: number) => {
+      const rect = el.getBoundingClientRect();
+      const x = ((clientX - rect.left) / rect.width) * size;
+      const y = ((clientY - rect.top) / rect.height) * size;
+      return { x, y };
+    };
+
+    const applyAnchoredZoom = (newZoom: number, anchor: { x: number; y: number }) => {
+      const z0 = zoomRef.current;
+      const p0 = panRef.current;
+
+      const z1 = clamp(newZoom, ZOOM_MIN, ZOOM_MAX);
+
+      // If basically back to default, snap back neatly
+      if (z1 <= 1.01) {
+        setZoom(1);
+        setPan({ x: 0, y: 0 });
+        return;
+      }
+
+      // Effective point in the "unpanned" globe space
+      const unpanned = { x: anchor.x - p0.x, y: anchor.y - p0.y };
+
+      // Which lon/lat is currently under the anchor? (only works on visible hemisphere)
+      const ll = projection.invert?.([unpanned.x, unpanned.y]);
+      if (!ll) {
+        setZoom(z1);
+        return;
+      }
+
+      // Build a temporary projection at the NEW zoom to reproject that lon/lat
+      const proj1 = geoOrthographic()
+        .scale(baseRadius * z1)
+        .translate([center, center])
+        .clipAngle(90)
+        .rotate([rotation, tilt]);
+
+      const p1 = proj1(ll as any);
+      if (!p1) {
+        setZoom(z1);
+        return;
+      }
+
+      // Set pan so that p1 + pan1 = anchor  => pan1 = anchor - p1
+      const pan1 = { x: anchor.x - p1[0], y: anchor.y - p1[1] };
+
+      setZoom(z1);
+      setPan(pan1);
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+
+      const anchor = svgPointFromClient(e.clientX, e.clientY);
+
+      // stable feel across mouse wheels + trackpads
+      const delta = -e.deltaY * 0.0012;
+      const next = zoomRef.current + delta;
+
+      applyAnchoredZoom(next, anchor);
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        pinchDistRef.current = getTouchDist(e.touches[0], e.touches[1]);
+      }
+      if (e.touches.length === 1 && zoomRef.current > ZOOM_SPIN_PAUSE_AT) {
+        // begin drag rotate (mobile)
+        draggingRef.current = true;
+        dragStartXRef.current = e.touches[0].clientX;
+        dragStartRotRef.current = rotation;
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      // pinch zoom
+      if (e.touches.length === 2 && pinchDistRef.current != null) {
+        e.preventDefault();
+
+        const d = getTouchDist(e.touches[0], e.touches[1]);
+        const dd = d - pinchDistRef.current;
+        pinchDistRef.current = d;
+
+        const midClientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midClientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const anchor = svgPointFromClient(midClientX, midClientY);
+
+        const next = zoomRef.current + dd * 0.003;
+        applyAnchoredZoom(next, anchor);
+        return;
+      }
+
+      // drag rotate (single finger) only while zoomed in
+      if (e.touches.length === 1 && draggingRef.current && zoomRef.current > ZOOM_SPIN_PAUSE_AT) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - dragStartXRef.current;
+        const ROT_SENS = 0.22; // deg per px
+        setRotation((dragStartRotRef.current + dx * ROT_SENS) % 360);
+      }
+    };
+
+    const onTouchEnd = () => {
+      pinchDistRef.current = null;
+      draggingRef.current = false;
+    };
+
+    // Pointer (mouse) drag rotate when zoomed in
+    const onPointerDown = (e: PointerEvent) => {
+      if (zoomRef.current <= ZOOM_SPIN_PAUSE_AT) return;
+      draggingRef.current = true;
+      dragStartXRef.current = e.clientX;
+      dragStartRotRef.current = rotation;
+
+      // capture to keep dragging even if pointer leaves element
+      (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!draggingRef.current) return;
+      if (zoomRef.current <= ZOOM_SPIN_PAUSE_AT) return;
+
+      e.preventDefault();
+
+      const dx = e.clientX - dragStartXRef.current;
+      const ROT_SENS = 0.22; // deg per px
+      setRotation((dragStartRotRef.current + dx * ROT_SENS) % 360);
+    };
+
+    const onPointerUp = () => {
+      draggingRef.current = false;
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("touchstart", onTouchStart, { passive: false });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd, { passive: false });
+    el.addEventListener("touchcancel", onTouchEnd, { passive: false });
+
+    el.addEventListener("pointerdown", onPointerDown, { passive: false });
+    el.addEventListener("pointermove", onPointerMove, { passive: false });
+    el.addEventListener("pointerup", onPointerUp, { passive: false });
+    el.addEventListener("pointercancel", onPointerUp, { passive: false });
+    el.addEventListener("pointerleave", onPointerUp, { passive: false });
+
+    return () => {
+      el.removeEventListener("wheel", onWheel as any);
+      el.removeEventListener("touchstart", onTouchStart as any);
+      el.removeEventListener("touchmove", onTouchMove as any);
+      el.removeEventListener("touchend", onTouchEnd as any);
+      el.removeEventListener("touchcancel", onTouchEnd as any);
+
+      el.removeEventListener("pointerdown", onPointerDown as any);
+      el.removeEventListener("pointermove", onPointerMove as any);
+      el.removeEventListener("pointerup", onPointerUp as any);
+      el.removeEventListener("pointercancel", onPointerUp as any);
+      el.removeEventListener("pointerleave", onPointerUp as any);
+    };
+  }, [projection, baseRadius, center, rotation, tilt]);
+
+  // Cursor feedback: only “grab” when zoomed in
+  const cursorClass =
+    zoom > ZOOM_SPIN_PAUSE_AT ? "cursor-grab active:cursor-grabbing" : "cursor-default";
+
   return (
     <div className="mt-0">
       <div
         ref={containerRef}
-        className="relative w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] md:w-[320px] md:h-[320px] mx-auto"
-        // critical: stops iOS/Android from treating pinches as page zoom/scroll
-        style={{ touchAction: "none" }}
-        aria-label="Interactive globe. Scroll or pinch to zoom."
-        title="Scroll/pinch to zoom"
+        className={[
+          "relative w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] md:w-[320px] md:h-[320px] mx-auto select-none",
+          cursorClass,
+        ].join(" ")}
+        style={{
+          touchAction: "none",
+        }}
+        aria-label="Interactive globe. Scroll/pinch to zoom, drag to rotate when zoomed in."
+        title="Scroll/pinch to zoom • Drag to rotate (when zoomed in)"
       >
         <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full block">
           <defs>
@@ -474,6 +604,11 @@ export function HeroGlobe({
               <stop offset="40%" stopColor="rgba(255,255,255,0.05)" />
               <stop offset="70%" stopColor="rgba(255,255,255,0)" />
             </radialGradient>
+
+            {/* Clip everything to a fixed sphere (contained zoom/pan) */}
+            <clipPath id="sphereClip">
+              <circle cx={center} cy={center} r={baseRadius} />
+            </clipPath>
 
             {/* Gold glow (visited countries) */}
             <filter id="goldGlow" x="-60%" y="-60%" width="220%" height="220%">
@@ -541,190 +676,172 @@ export function HeroGlobe({
             </filter>
           </defs>
 
-          {/* STARFIELD */}
+          {/* STARFIELD (not clipped, stays fixed) */}
           <g opacity={0.75}>
             {stars.map((s, i) => (
               <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#ffffff" opacity={s.o} />
             ))}
           </g>
 
-          {/* Sphere base */}
+          {/* Sphere base (fixed size, contained) */}
           <circle
             cx={center}
             cy={center}
-            r={radius}
+            r={baseRadius}
             fill="url(#oceanShade)"
             filter="url(#sphereShadow)"
           />
 
-          {/* Atmosphere + spec */}
-          <circle cx={center} cy={center} r={radius} fill="url(#atmo)" />
-          <circle cx={center} cy={center} r={radius} fill="url(#spec)" />
+          {/* Atmosphere + spec (fixed size) */}
+          <circle cx={center} cy={center} r={baseRadius} fill="url(#atmo)" />
+          <circle cx={center} cy={center} r={baseRadius} fill="url(#spec)" />
 
-          {/* ROUTE: base lines + faint pulse overlay */}
-          {routeSegments.length ? (
-            <g filter="url(#routeGlow)">
-              {routeSegments.map(({ d, t }, i) => {
-                const alpha = 0; /*0.15 + 0.1 * t; */
-                const w = 0; /* 1.0 + 0.2 * t;*/
-                return (
-                  <path
-                    key={`route-${i}`}
-                    d={d}
-                    fill="none"
-                    stroke={`rgba(${routeColor},${alpha})`}
-                    strokeWidth={w}
-                    strokeLinecap="round"
-                  />
-                );
-              })}
-
-              {/* Pulse overlay */}
-              {routeSegments.map(({ d, t }, i) => {
-                const show = t > 0.35;
-                if (!show) return null;
-
-                const pulseAlpha = 0.04 + 0.06 * t;
-                return (
-                  <path
-                    key={`pulse-${i}`}
-                    d={d}
-                    fill="none"
-                    stroke={`rgba(${routeColor},${pulseAlpha})`}
-                    strokeWidth={1.25}
-                    strokeLinecap="round"
-                    className={`travel-pulse travel-pulse-${i}`}
-                  />
-                );
-              })}
-            </g>
-          ) : null}
-
-          {/* Node stars */}
-          {routeNodes.length ? (
-            <g filter="url(#nodeGlow)">
-              {routeNodes.map((n, i) => {
-                const r = 1.3 + 0.3 * n.t;
-                const a = 0.42 + 0.08 * n.t;
-
-                return (
-                  <g key={`node-${i}`}>
-                    <circle
-                      cx={n.x}
-                      cy={n.y}
-                      r={r * 2.2}
-                      fill={`rgba(${routeColor},${0.10 + 0.05 * n.t})`}
+          {/* EVERYTHING INSIDE THE SPHERE IS CLIPPED + PANNED */}
+          <g clipPath="url(#sphereClip)" transform={`translate(${pan.x} ${pan.y})`}>
+            {/* ROUTE */}
+            {routeSegments.length ? (
+              <g filter="url(#routeGlow)">
+                {routeSegments.map(({ d, t }, i) => {
+                  const alpha = 0;
+                  const w = 0;
+                  return (
+                    <path
+                      key={`route-${i}`}
+                      d={d}
+                      fill="none"
+                      stroke={`rgba(${routeColor},${alpha})`}
+                      strokeWidth={w}
+                      strokeLinecap="round"
                     />
-                    <circle
-                      cx={n.x}
-                      cy={n.y}
-                      r={r}
-                      fill={`rgba(${routeColor},${a})`}
+                  );
+                })}
+
+                {routeSegments.map(({ d, t }, i) => {
+                  const show = t > 0.35;
+                  if (!show) return null;
+
+                  const pulseAlpha = 0.04 + 0.06 * t;
+                  return (
+                    <path
+                      key={`pulse-${i}`}
+                      d={d}
+                      fill="none"
+                      stroke={`rgba(${routeColor},${pulseAlpha})`}
+                      strokeWidth={1.25}
+                      strokeLinecap="round"
+                      className={`travel-pulse travel-pulse-${i}`}
                     />
-                    <circle
-                      cx={n.x - 0.6}
-                      cy={n.y - 0.6}
-                      r={Math.max(0.55, r * 0.38)}
-                      fill="rgba(255,255,255,0.55)"
-                      opacity={0.55}
-                    />
-                  </g>
-                );
-              })}
-            </g>
-          ) : null}
-
-          {/* Countries */}
-          {features.map((f, idx) => {
-            const name = normalizeCountryName(f?.properties?.name || "");
-            const isVisited = visitedSet.has(name);
-            const d = pathGen(f) || "";
-            if (!d) return null;
-
-            const clipId = `clip-${idx}`;
-
-            return (
-              <g key={idx}>
-                {isVisited ? (
-                  <defs>
-                    <clipPath id={clipId}>
-                      <path d={d} />
-                    </clipPath>
-                  </defs>
-                ) : null}
-
-                {/* Breathing gold glow */}
-                {isVisited ? (
-                  <path
-                    d={d}
-                    fill={glowGold}
-                    opacity={0.55}
-                    className="visited-pulse"
-                    filter="url(#goldGlow)"
-                  />
-                ) : null}
-
-                {/* Land + borders */}
-                <path
-                  d={d}
-                  fill={isVisited ? glowGold : landBase}
-                  opacity={isVisited ? 0.82 : 1}
-                  stroke={isVisited ? visitedBorder : border}
-                  strokeWidth={isVisited ? 1.05 : 0.7}
-                  filter={isVisited ? "url(#goldBorderGlow)" : undefined}
-                  className={isVisited ? "visited-border-pulse" : undefined}
-                  vectorEffect="non-scaling-stroke"
-                />
-
-                {/* City lights */}
-                {isVisited && lightsByCountry[name]?.length ? (
-                  <g
-                    clipPath={`url(#${clipId})`}
-                    filter="url(#lightGlow)"
-                    className="visited-pulse"
-                  >
-                    {lightsByCountry[name].map((p, i) => (
-                      <circle
-                        key={i}
-                        cx={p.x}
-                        cy={p.y}
-                        r={p.r}
-                        fill={"#ffc83d"}
-                        opacity={p.o}
-                      />
-                    ))}
-                  </g>
-                ) : null}
+                  );
+                })}
               </g>
-            );
-          })}
+            ) : null}
 
-          {/* CURRENT LOCATION PIN */}
-          {currentPoint ? (
-            <g
-              className="current-pin"
-              transform={`translate(${currentPoint.x}, ${currentPoint.y})`}
-            >
-              <circle
-                r="6.25"
-                fill="transparent"
-                stroke="rgba(255, 70, 70, 0.78)"
-                strokeWidth="1.9"
-                filter="url(#pinGlow)"
-                className="pin-ring"
-              />
-              <circle r="2.625" fill="#ff3b3b" filter="url(#pinGlow)" />
-              <circle
-                cx="-0.75"
-                cy="-0.75"
-                r="0.75"
-                fill="rgba(255,255,255,0.78)"
-              />
-            </g>
-          ) : null}
+            {/* Node stars */}
+            {routeNodes.length ? (
+              <g filter="url(#nodeGlow)">
+                {routeNodes.map((n, i) => {
+                  const r = 1.3 + 0.3 * n.t;
+                  const a = 0.42 + 0.08 * n.t;
 
-          {/* Terminator shading */}
-          <circle cx={center} cy={center} r={radius} fill="url(#terminator)" />
+                  return (
+                    <g key={`node-${i}`}>
+                      <circle
+                        cx={n.x}
+                        cy={n.y}
+                        r={r * 2.2}
+                        fill={`rgba(${routeColor},${0.10 + 0.05 * n.t})`}
+                      />
+                      <circle cx={n.x} cy={n.y} r={r} fill={`rgba(${routeColor},${a})`} />
+                      <circle
+                        cx={n.x - 0.6}
+                        cy={n.y - 0.6}
+                        r={Math.max(0.55, r * 0.38)}
+                        fill="rgba(255,255,255,0.55)"
+                        opacity={0.55}
+                      />
+                    </g>
+                  );
+                })}
+              </g>
+            ) : null}
+
+            {/* Countries */}
+            {features.map((f, idx) => {
+              const name = normalizeCountryName(f?.properties?.name || "");
+              const isVisited = visitedSet.has(name);
+              const d = pathGen(f) || "";
+              if (!d) return null;
+
+              const clipId = `clip-${idx}`;
+
+              return (
+                <g key={idx}>
+                  {isVisited ? (
+                    <defs>
+                      <clipPath id={clipId}>
+                        <path d={d} />
+                      </clipPath>
+                    </defs>
+                  ) : null}
+
+                  {isVisited ? (
+                    <path
+                      d={d}
+                      fill={glowGold}
+                      opacity={0.55}
+                      className="visited-pulse"
+                      filter="url(#goldGlow)"
+                    />
+                  ) : null}
+
+                  <path
+                    d={d}
+                    fill={isVisited ? glowGold : landBase}
+                    opacity={isVisited ? 0.82 : 1}
+                    stroke={isVisited ? visitedBorder : border}
+                    strokeWidth={isVisited ? 1.05 : 0.7}
+                    filter={isVisited ? "url(#goldBorderGlow)" : undefined}
+                    className={isVisited ? "visited-border-pulse" : undefined}
+                    vectorEffect="non-scaling-stroke"
+                  />
+
+                  {isVisited && lightsByCountry[name]?.length ? (
+                    <g clipPath={`url(#${clipId})`} filter="url(#lightGlow)" className="visited-pulse">
+                      {lightsByCountry[name].map((p, i) => (
+                        <circle
+                          key={i}
+                          cx={p.x}
+                          cy={p.y}
+                          r={p.r}
+                          fill={"#ffc83d"}
+                          opacity={p.o}
+                        />
+                      ))}
+                    </g>
+                  ) : null}
+                </g>
+              );
+            })}
+
+            {/* CURRENT LOCATION PIN (also pans/zooms) */}
+            {currentPoint ? (
+              <g className="current-pin" transform={`translate(${currentPoint.x}, ${currentPoint.y})`}>
+                <circle
+                  r="6.25"
+                  fill="transparent"
+                  stroke="rgba(255, 70, 70, 0.78)"
+                  strokeWidth="1.9"
+                  filter="url(#pinGlow)"
+                  className="pin-ring"
+                />
+                <circle r="2.625" fill="#ff3b3b" filter="url(#pinGlow)" />
+                <circle cx="-0.75" cy="-0.75" r="0.75" fill="rgba(255,255,255,0.78)" />
+              </g>
+            ) : null}
+          </g>
+
+          {/* Terminator shading (fixed size, on top) */}
+          <circle cx={center} cy={center} r={baseRadius} fill="url(#terminator)" />
         </svg>
 
         <style jsx>{`
@@ -738,27 +855,15 @@ export function HeroGlobe({
           }
 
           @keyframes pulseGlow {
-            0% {
-              opacity: 0.55;
-            }
-            50% {
-              opacity: 0.88;
-            }
-            100% {
-              opacity: 0.55;
-            }
+            0% { opacity: 0.55; }
+            50% { opacity: 0.88; }
+            100% { opacity: 0.55; }
           }
 
           @keyframes borderPulse {
-            0% {
-              stroke-opacity: 0.55;
-            }
-            50% {
-              stroke-opacity: 0.92;
-            }
-            100% {
-              stroke-opacity: 0.55;
-            }
+            0% { stroke-opacity: 0.55; }
+            50% { stroke-opacity: 0.92; }
+            100% { stroke-opacity: 0.55; }
           }
 
           .current-pin {
@@ -767,15 +872,9 @@ export function HeroGlobe({
           }
 
           @keyframes pinFade {
-            0% {
-              opacity: 0.85;
-            }
-            50% {
-              opacity: 1;
-            }
-            100% {
-              opacity: 0.85;
-            }
+            0% { opacity: 0.85; }
+            50% { opacity: 1; }
+            100% { opacity: 0.85; }
           }
 
           .pin-ring {
@@ -784,30 +883,18 @@ export function HeroGlobe({
           }
 
           @keyframes ringExpand {
-            0% {
-              transform: scale(0.55);
-              opacity: 0.75;
-            }
-            70% {
-              transform: scale(1.45);
-              opacity: 0;
-            }
-            100% {
-              transform: scale(1.45);
-              opacity: 0;
-            }
+            0% { transform: scale(0.55); opacity: 0.75; }
+            70% { transform: scale(1.45); opacity: 0; }
+            100% { transform: scale(1.45); opacity: 0; }
           }
 
-          /* TRAVEL PULSE */
           .travel-pulse {
             stroke-dasharray: 6 18;
             animation: dashMove 3s linear infinite;
           }
 
           @keyframes dashMove {
-            to {
-              stroke-dashoffset: -140;
-            }
+            to { stroke-dashoffset: -140; }
           }
 
           ${Array.from({ length: 24 })
