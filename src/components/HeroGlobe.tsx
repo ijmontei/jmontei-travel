@@ -595,7 +595,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
                         cx={p.x}
                         cy={p.y}
                         r={p.r}
-                        fill={"#ff0000"}
+                        fill={"#ffc83d"}
                         opacity={p.o}
                       />
                     ))}
