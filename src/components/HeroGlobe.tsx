@@ -153,7 +153,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
   // Tuning
   const ZOOM_MIN = 1;
-  const ZOOM_MAX = 2.6;
+  const ZOOM_MAX = 4;
 
   const size = 320;
   const center = size / 2;
@@ -179,36 +179,42 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
   useEffect(() => {
     const SPEED = 25; // deg/sec
     const RAMP = 10; // higher = snappier ramp back
-
+    const ZOOM_STOP_AT = 1.02; // stop auto-spin when zoomed in past this
+  
     let raf = 0;
     let last = performance.now();
     let spinSpeed = SPEED;
-
+  
     const tick = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
-
+  
+      const zoomedIn = zoomRef.current > ZOOM_STOP_AT;
       const interacting = draggingRef.current;
-
-      const target = interacting ? 0 : SPEED;
+  
+      // ✅ If zoomed in OR dragging, pause auto-spin
+      const target = zoomedIn || interacting ? 0 : SPEED;
+  
+      // smooth ramp to target speed
       spinSpeed += (target - spinSpeed) * (1 - Math.exp(-RAMP * dt));
-
+  
       if (Math.abs(spinSpeed) > 0.001) {
         setRotLon((r) => (r + spinSpeed * dt) % 360);
       }
-
-      // Ease latitude back toward default when not dragging (prevents “stuck tilt”)
+  
+      // ✅ Only “return tilt to default” when user isn't actively dragging
       if (!interacting) {
         const k = 6;
         setRotLat((lat) => lat + (DEFAULT_TILT - lat) * (1 - Math.exp(-k * dt)));
       }
-
+  
       raf = requestAnimationFrame(tick);
     };
-
+  
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, []);
+  
 
   const visitedSet = useMemo(() => {
     const set = new Set<string>();
