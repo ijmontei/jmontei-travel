@@ -16,7 +16,7 @@ export function AmbientBackground() {
       />
 
       {/* Sketch overlay */}
-      <div className="absolute inset-0 opacity-[0.14] mix-blend-multiply">
+      <div className="absolute inset-0 opacity-[0.18] mix-blend-multiply">
         <svg
           className="h-full w-full"
           viewBox="0 0 1200 800"
@@ -28,11 +28,11 @@ export function AmbientBackground() {
               <circle cx="2" cy="2" r="0.9" fill="rgba(0,0,0,0.10)" />
             </pattern>
 
-            {/* Very subtle fade so art doesn’t compete with content */}
+            {/* ✅ Mask gradient MUST be white (white shows, black hides) */}
             <linearGradient id="fadeDown" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="rgba(0,0,0,0.40)" />
-              <stop offset="45%" stopColor="rgba(0,0,0,0.22)" />
-              <stop offset="100%" stopColor="rgba(0,0,0,0.00)" />
+              <stop offset="0%" stopColor="white" stopOpacity="0.55" />
+              <stop offset="45%" stopColor="white" stopOpacity="0.30" />
+              <stop offset="100%" stopColor="white" stopOpacity="0.00" />
             </linearGradient>
 
             {/* Line style */}
@@ -80,7 +80,6 @@ export function AmbientBackground() {
               }
             `}</style>
 
-            {/* Mask to fade the whole sketch downward */}
             <mask id="sketchMask">
               <rect x="0" y="0" width="1200" height="800" fill="url(#fadeDown)" />
             </mask>
@@ -90,7 +89,7 @@ export function AmbientBackground() {
           <rect x="0" y="0" width="1200" height="800" fill="url(#paperDots)" opacity="0.10" />
 
           <g mask="url(#sketchMask)">
-            {/* Mountains (silhouette line art) */}
+            {/* Mountains */}
             <path
               className="sketch-line"
               d="M-40,560
@@ -121,7 +120,7 @@ export function AmbientBackground() {
             <path className="hatch" d="M900,360 l-16,20" />
             <path className="hatch" d="M920,340 l-16,20" />
 
-            {/* Cabin + trail (tiny) */}
+            {/* Cabin + trail */}
             <g transform="translate(820 585) scale(0.95)">
               <path className="sketch-line" d="M0,40 L70,40 L70,12 L0,12 Z" />
               <path className="sketch-line" d="M-6,12 L35,-8 L76,12" />
@@ -130,7 +129,7 @@ export function AmbientBackground() {
               <path className="sketch-soft sketch-line" d="M-120,80 C-50,55 20,55 120,40" />
             </g>
 
-            {/* Trees (simple sketch triangles) */}
+            {/* Trees */}
             <g transform="translate(720 600)">
               {Array.from({ length: 7 }).map((_, i) => {
                 const x = i * 28;
@@ -145,7 +144,7 @@ export function AmbientBackground() {
               })}
             </g>
 
-            {/* Planes (tiny outline icons) */}
+            {/* Planes */}
             <g className="plane1" transform="translate(0 0)">
               <path
                 className="sketch-line sketch-soft"
@@ -160,7 +159,7 @@ export function AmbientBackground() {
               />
             </g>
 
-            {/* A subtle “compass / trail mark” accent top-left */}
+            {/* Compass */}
             <g transform="translate(120 140) rotate(-8)">
               <circle className="sketch-line sketch-soft" cx="0" cy="0" r="30" />
               <path className="sketch-line sketch-soft" d="M0,-24 L0,24" />
@@ -171,7 +170,7 @@ export function AmbientBackground() {
         </svg>
       </div>
 
-      {/* A subtle vignette so content reads cleanly */}
+      {/* subtle vignette */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/[0.02] via-transparent to-black/[0.04]" />
     </div>
   );
