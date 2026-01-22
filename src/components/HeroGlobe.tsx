@@ -471,7 +471,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
           {routeSegments.length ? (
             <g filter="url(#routeGlow)">
               {routeSegments.map(({ d, t }, i) => {
-                const alpha = 0.3 + 0.04 * t; // newest ~20% more pop
+                const alpha = 0.2 + 0.06 * t; // newest ~20% more pop
                 const w = 1.0 + 0.2 * t;
                 return (
                   <path
