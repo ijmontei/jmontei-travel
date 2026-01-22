@@ -23,6 +23,13 @@ export function PostCard(props: PostCardProps) {
         .url()
     : null;
 
+  const dateLabel = (() => {
+    if (!publishedAt) return null;
+    const d = new Date(publishedAt);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleDateString();
+  })();
+
   return (
     <Link href={`/posts/${slug}`} className="group block">
       <article
@@ -51,16 +58,18 @@ export function PostCard(props: PostCardProps) {
         <div className="p-6">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-zinc-500">
             {country ? (
-              <span className="inline-flex items-center rounded-full border border-amber-200/70 bg-amber-50 px-2.5 py-1 text-amber-900">
-                {country}
-              </span>
+              <div className="relative inline-flex items-center">
+                {/* Stamp accent (subtle, behind the pill) */}
+                <span className="pointer-events-none absolute -left-2 -top-2 h-11 w-11 rounded-full bg-amber-100/60 blur-[0.2px]" />
+                <span className="pointer-events-none absolute -left-2 -top-2 h-11 w-11 rounded-full border border-amber-300/40 [border-style:dashed] opacity-60" />
+
+                <span className="relative inline-flex items-center rounded-full border border-amber-200/70 bg-amber-50 px-2.5 py-1 text-amber-900">
+                  {country}
+                </span>
+              </div>
             ) : null}
 
-            {publishedAt ? (
-              <span className="tabular-nums">
-                {new Date(publishedAt).toLocaleDateString()}
-              </span>
-            ) : null}
+            {dateLabel ? <span className="tabular-nums">{dateLabel}</span> : null}
           </div>
 
           <h3 className="mt-3 text-lg font-semibold tracking-tight text-zinc-900">
@@ -75,9 +84,10 @@ export function PostCard(props: PostCardProps) {
             </p>
           ) : null}
 
+          {/* “Read →” motion */}
           <div className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-amber-700">
-            Read
-            <span className="transition-transform duration-300 group-hover:translate-x-0.5">
+            <span>Read</span>
+            <span className="transition-transform duration-200 group-hover:translate-x-1">
               →
             </span>
           </div>
