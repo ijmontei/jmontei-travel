@@ -184,7 +184,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
   // Constellation neon blue (RGB string used in rgba())
   const routeColor = "80, 200, 255"; // neon blue
-  const visitedBorder = "#000";
+  const visitedBorder = "#945f10";
 
   // View center lon/lat approx for rotate([rotation, tilt]) is [-rotation, -tilt]
   const viewCenterLonLat = useMemo<[number, number]>(() => [-rotation, -tilt], [rotation]);
