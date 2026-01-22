@@ -184,7 +184,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
   // Constellation neon blue (RGB string used in rgba())
   const routeColor = "80, 200, 255"; // neon blue
-  const visitedBorder = `rgba(${routeColor},0.65)`; // base visited border
+  const visitedBorder = "rgba(197, 160, 74, 0.70)";
 
   // View center lon/lat approx for rotate([rotation, tilt]) is [-rotation, -tilt]
   const viewCenterLonLat = useMemo<[number, number]>(() => [-rotation, -tilt], [rotation]);
@@ -390,13 +390,13 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
               </feMerge>
             </filter>
 
-            {/* Neon blue border glow (visited outline) */}
-            <filter id="blueGlow" x="-70%" y="-70%" width="240%" height="240%">
-              <feGaussianBlur stdDeviation="1.35" result="b" />
-              <feMerge>
+            {/* Dark gold outline glow (visited borders) */}
+            <filter id="goldBorderGlow" x="-70%" y="-70%" width="240%" height="240%">
+            <feGaussianBlur stdDeviation="1.25" result="b" />
+            <feMerge>
                 <feMergeNode in="b" />
                 <feMergeNode in="SourceGraphic" />
-              </feMerge>
+            </feMerge>
             </filter>
 
             {/* Light glow for speckles */}
@@ -577,7 +577,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
                   opacity={isVisited ? 0.82 : 1}
                   stroke={isVisited ? visitedBorder : border}
                   strokeWidth={isVisited ? 1.05 : 0.7}
-                  filter={isVisited ? "url(#blueGlow)" : undefined}
+                  filter={isVisited ? "url(#goldBorderGlow)" : undefined}
                   className={isVisited ? "visited-border-pulse" : undefined}
                   vectorEffect="non-scaling-stroke"
                 />
