@@ -1,3 +1,4 @@
+// app/(whatever)/HomeView.tsx (or wherever your HomeView lives)
 "use client";
 
 import { useMemo, useState } from "react";
@@ -69,28 +70,28 @@ export function HomeView({ posts }: { posts: Post[] }) {
   // Current country = latest post country (posts are newest-first)
   const currentCountry = posts?.[0]?.country ?? null;
 
-      const routeCountries = useMemo(() => {
-        const sorted = [...posts]
-          .filter((p) => Boolean(p.publishedAt))
-          .sort(
-            (a, b) =>
-              new Date(a.publishedAt as string).getTime() -
-              new Date(b.publishedAt as string).getTime()
-          );
-      
-        const seen = new Set<string>();
-        const route: string[] = [];
-      
-        for (const p of sorted) {
-          const c = (p.country || "").trim();
-          if (!c) continue;
-          if (seen.has(c)) continue;
-          seen.add(c);
-          route.push(c);
-        }
-      
-        return route;
-      }, [posts]);
+  const routeCountries = useMemo(() => {
+    const sorted = [...posts]
+      .filter((p) => Boolean(p.publishedAt))
+      .sort((a, b) => {
+        const ta = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+        const tb = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+        return ta - tb;
+      });
+
+    const seen = new Set<string>();
+    const route: string[] = [];
+
+    for (const p of sorted) {
+      const c = (p.country || "").trim();
+      if (!c) continue;
+      if (seen.has(c)) continue;
+      seen.add(c);
+      route.push(c);
+    }
+
+    return route;
+  }, [posts]);
 
   return (
     <main className="min-h-screen text-[hsl(var(--text))]">
@@ -98,7 +99,56 @@ export function HomeView({ posts }: { posts: Post[] }) {
         {/* HERO SECTION */}
         <header className="mb-2">
           {/* Globe first (hero centerpiece) */}
-          <div className="flex justify-center -mt-6">
+          <div className="relative flex justify-center -mt-6">
+            {/* Gravitational “lens” warp behind the globe */}
+            <div
+              className="pointer-events-none absolute inset-0 flex items-center justify-center"
+              aria-hidden
+            >
+              <svg
+                width="520"
+                height="520"
+                viewBox="0 0 520 520"
+                className="opacity-[0.18] sm:opacity-[0.16] md:opacity-[0.14]"
+              >
+                <defs>
+                  <filter id="gravityWarp" x="-35%" y="-35%" width="170%" height="170%">
+                    <feTurbulence
+                      type="fractalNoise"
+                      baseFrequency="0.012"
+                      numOctaves="2"
+                      seed="2"
+                      result="noise"
+                    >
+                      <animate
+                        attributeName="baseFrequency"
+                        dur="9s"
+                        values="0.010;0.014;0.010"
+                        repeatCount="indefinite"
+                      />
+                    </feTurbulence>
+
+                    <feDisplacementMap
+                      in="SourceGraphic"
+                      in2="noise"
+                      scale="16"
+                      xChannelSelector="R"
+                      yChannelSelector="G"
+                    />
+                  </filter>
+
+                  <radialGradient id="lens" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="rgba(255,255,255,0.85)" />
+                    <stop offset="55%" stopColor="rgba(255,255,255,0.22)" />
+                    <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+                  </radialGradient>
+                </defs>
+
+                {/* lens shape */}
+                <circle cx="260" cy="260" r="175" fill="url(#lens)" filter="url(#gravityWarp)" />
+              </svg>
+            </div>
+
             <HeroGlobe
               visitedCountries={visitedCountries}
               currentCountry={currentCountry}
