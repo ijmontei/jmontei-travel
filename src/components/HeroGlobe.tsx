@@ -461,9 +461,8 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
           {routeSegments.length ? (
             <g filter="url(#routeGlow)">
               {routeSegments.map(({ d, t }, i) => {
-                // newest only ~20% stronger than oldest
-                const alpha = 0.18 + 0.04 * t; // 0.18..0.22
-                const w = 1.0 + 0.2 * t; // 1.0..1.2
+                const alpha = 0.3 + 0.04 * t; // 0.18..0.22
+                const w = 2.0 + 0.2 * t; // 1.0..1.2
                 return (
                   <path
                     key={`route-${i}`}
