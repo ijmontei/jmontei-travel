@@ -12,7 +12,7 @@ import { feature } from "topojson-client";
 type Props = {
   visitedCountries: string[];
   currentCountry?: string | null;
-  routeCountries?: string[]; // for constellation route (ordered oldest->newest)
+  routeCountries?: string[]; // ordered oldest->newest
 };
 
 function normalizeCountryName(name: string) {
@@ -56,10 +56,10 @@ const COUNTRY_ALIASES: Record<string, string> = {
 
   "south korea": "korea, republic of",
   korea: "korea, republic of",
-  "north korea": "korea, democratic people's republic of",
+  "north korea": "korea, democratic people's democratic republic of",
 };
 
-/** Deterministic PRNG so lights/stars don't "jump" on rerenders */
+/** Deterministic PRNG so lights/stars don't jump */
 function hashString(str: string) {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) {
@@ -112,11 +112,7 @@ function centroidOfFeature(f: any): [number, number] | null {
   return [sx / coords.length, sy / coords.length];
 }
 
-export function HeroGlobe({
-  visitedCountries,
-  currentCountry,
-  routeCountries,
-}: Props) {
+export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: Props) {
   const [features, setFeatures] = useState<any[]>([]);
   const [rotation, setRotation] = useState(0);
 
@@ -179,12 +175,15 @@ export function HeroGlobe({
 
   const pathGen = geoPath(projection);
 
-  // Palette
+  // Palette (globe)
   const oceanA = "#050b15";
   const oceanB = "#0b1a33";
   const landBase = "rgba(255,255,255,0.04)";
   const border = "rgba(170, 195, 230, 0.14)";
   const glowGold = "#f5de88";
+
+  // Constellation neon blue (RGB string used in rgba())
+  const routeColor = "80, 200, 255";
 
   // View center lon/lat approx for rotate([rotation, tilt]) is [-rotation, -tilt]
   const viewCenterLonLat = useMemo<[number, number]>(() => [-rotation, -tilt], [rotation]);
@@ -259,7 +258,7 @@ export function HeroGlobe({
     return { x: p[0], y: p[1] };
   }, [currentName, features, projection, viewCenterLonLat]);
 
-  // Route: convert ordered country list -> lon/lat points (centroids)
+  // Route: country list -> lon/lat points (centroids)
   const routeLonLat = useMemo(() => {
     if (!routeCountries?.length || !features.length) return [];
 
@@ -285,7 +284,7 @@ export function HeroGlobe({
     return out;
   }, [routeCountries, features]);
 
-  // Build route segments with recency weighting + screen-space path
+  // Build route segments with subtle recency scaling (newest only ~20% more)
   const routeSegments = useMemo(() => {
     if (routeLonLat.length < 2) return [];
 
@@ -325,7 +324,7 @@ export function HeroGlobe({
     return segs;
   }, [routeLonLat, projection, viewCenterLonLat]);
 
-  // Node stars at each route stop (front hemisphere only), brightness by recency
+  // Node stars at each route stop (front hemisphere only), subtle recency boost
   const routeNodes = useMemo(() => {
     if (!routeLonLat.length) return [];
 
@@ -381,7 +380,7 @@ export function HeroGlobe({
               <stop offset="70%" stopColor="rgba(255,255,255,0)" />
             </radialGradient>
 
-            {/* Gold glow */}
+            {/* Gold glow (visited countries) */}
             <filter id="goldGlow" x="-60%" y="-60%" width="220%" height="220%">
               <feGaussianBlur stdDeviation="2.6" result="blur" />
               <feMerge>
@@ -410,16 +409,16 @@ export function HeroGlobe({
 
             {/* Route glow */}
             <filter id="routeGlow" x="-80%" y="-80%" width="260%" height="260%">
-              <feGaussianBlur stdDeviation="1.6" result="b" />
+              <feGaussianBlur stdDeviation="1.4" result="b" />
               <feMerge>
                 <feMergeNode in="b" />
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
 
-            {/* Node glow */}
+            {/* Node glow (neon) */}
             <filter id="nodeGlow" x="-120%" y="-120%" width="340%" height="340%">
-              <feGaussianBlur stdDeviation="1.8" result="b" />
+              <feGaussianBlur stdDeviation="1.3" result="b" />
               <feMerge>
                 <feMergeNode in="b" />
                 <feMergeNode in="SourceGraphic" />
@@ -458,38 +457,38 @@ export function HeroGlobe({
           <circle cx={center} cy={center} r={radius} fill="url(#atmo)" />
           <circle cx={center} cy={center} r={radius} fill="url(#spec)" />
 
-          {/* ROUTE: base lines (recency brighter/thicker) + faint pulse overlay */}
+          {/* ROUTE: base lines + faint pulse overlay */}
           {routeSegments.length ? (
             <g filter="url(#routeGlow)">
               {routeSegments.map(({ d, t }, i) => {
-                // Older dimmer; newest brighter
-                const alpha = 0.10 + 0.28 * t; // 0.10..0.38
-                const w = 0.75 + 0.75 * t; // 0.75..1.50
+                // newest only ~20% stronger than oldest
+                const alpha = 0.18 + 0.04 * t; // 0.18..0.22
+                const w = 1.0 + 0.2 * t; // 1.0..1.2
                 return (
                   <path
                     key={`route-${i}`}
                     d={d}
                     fill="none"
-                    stroke={`rgba(245,222,136,${alpha})`}
+                    stroke={`rgba(${routeColor},${alpha})`}
                     strokeWidth={w}
                     strokeLinecap="round"
                   />
                 );
               })}
 
-              {/* Pulse overlay: strongest on newest legs */}
+              {/* Pulse overlay: subtle, mostly for newer legs */}
               {routeSegments.map(({ d, t }, i) => {
-                const pulseAlpha = 0.06 + 0.18 * t; // subtle
-                const show = t > 0.25; // only later part of journey gets pulse
+                const show = t > 0.35;
                 if (!show) return null;
 
+                const pulseAlpha = 0.04 + 0.06 * t; // subtle
                 return (
                   <path
                     key={`pulse-${i}`}
                     d={d}
                     fill="none"
-                    stroke={`rgba(245,222,136,${pulseAlpha})`}
-                    strokeWidth={1.4}
+                    stroke={`rgba(${routeColor},${pulseAlpha})`}
+                    strokeWidth={1.25}
                     strokeLinecap="round"
                     className={`travel-pulse travel-pulse-${i}`}
                   />
@@ -498,28 +497,28 @@ export function HeroGlobe({
             </g>
           ) : null}
 
-          {/* Node stars at each stop (recency brighter/bigger) */}
+          {/* Node stars at each stop (neon blue) */}
           {routeNodes.length ? (
             <g filter="url(#nodeGlow)">
               {routeNodes.map((n, i) => {
-                const r = 1.3 + 1.1 * n.t; // 1.3..2.4
-                const a = 0.22 + 0.55 * n.t; // 0.22..0.77
+                const r = 1.3 + 0.3 * n.t; // subtle size boost
+                const a = 0.42 + 0.08 * n.t; // subtle brightness boost
 
                 return (
                   <g key={`node-${i}`}>
-                    {/* soft halo */}
+                    {/* halo */}
                     <circle
                       cx={n.x}
                       cy={n.y}
                       r={r * 2.2}
-                      fill={`rgba(245,222,136,${0.08 + 0.12 * n.t})`}
+                      fill={`rgba(${routeColor},${0.10 + 0.05 * n.t})`}
                     />
-                    {/* core star */}
+                    {/* core */}
                     <circle
                       cx={n.x}
                       cy={n.y}
                       r={r}
-                      fill={`rgba(245,222,136,${a})`}
+                      fill={`rgba(${routeColor},${a})`}
                     />
                     {/* tiny spec */}
                     <circle
@@ -600,10 +599,7 @@ export function HeroGlobe({
 
           {/* CURRENT LOCATION PIN */}
           {currentPoint ? (
-            <g
-              className="current-pin"
-              transform={`translate(${currentPoint.x}, ${currentPoint.y})`}
-            >
+            <g className="current-pin" transform={`translate(${currentPoint.x}, ${currentPoint.y})`}>
               <circle
                 r="6.25"
                 fill="transparent"
@@ -613,12 +609,7 @@ export function HeroGlobe({
                 className="pin-ring"
               />
               <circle r="2.625" fill="#ff3b3b" filter="url(#pinGlow)" />
-              <circle
-                cx="-0.75"
-                cy="-0.75"
-                r="0.75"
-                fill="rgba(255,255,255,0.78)"
-              />
+              <circle cx="-0.75" cy="-0.75" r="0.75" fill="rgba(255,255,255,0.78)" />
             </g>
           ) : null}
 
@@ -633,15 +624,9 @@ export function HeroGlobe({
           }
 
           @keyframes pulseGlow {
-            0% {
-              opacity: 0.55;
-            }
-            50% {
-              opacity: 0.88;
-            }
-            100% {
-              opacity: 0.55;
-            }
+            0% { opacity: 0.55; }
+            50% { opacity: 0.88; }
+            100% { opacity: 0.55; }
           }
 
           .current-pin {
@@ -650,15 +635,9 @@ export function HeroGlobe({
           }
 
           @keyframes pinFade {
-            0% {
-              opacity: 0.85;
-            }
-            50% {
-              opacity: 1;
-            }
-            100% {
-              opacity: 0.85;
-            }
+            0% { opacity: 0.85; }
+            50% { opacity: 1; }
+            100% { opacity: 0.85; }
           }
 
           .pin-ring {
@@ -667,39 +646,24 @@ export function HeroGlobe({
           }
 
           @keyframes ringExpand {
-            0% {
-              transform: scale(0.55);
-              opacity: 0.75;
-            }
-            70% {
-              transform: scale(1.45);
-              opacity: 0;
-            }
-            100% {
-              transform: scale(1.45);
-              opacity: 0;
-            }
+            0% { transform: scale(0.55); opacity: 0.75; }
+            70% { transform: scale(1.45); opacity: 0; }
+            100% { transform: scale(1.45); opacity: 0; }
           }
 
           /* TRAVEL PULSE */
           .travel-pulse {
             stroke-dasharray: 6 18;
-            animation: dashMove 2.6s linear infinite;
+            animation: dashMove 3s linear infinite;
           }
 
           @keyframes dashMove {
-            to {
-              stroke-dashoffset: -120;
-            }
+            to { stroke-dashoffset: -140; }
           }
 
-          /* Slight staggering so multiple legs feel alive */
+          /* Stagger so legs feel alive */
           ${Array.from({ length: 24 })
-            .map(
-              (_, i) => `
-            .travel-pulse-${i} { animation-delay: -${i * 0.18}s; }
-          `
-            )
+            .map((_, i) => `.travel-pulse-${i} { animation-delay: -${i * 0.18}s; }`)
             .join("\n")}
 
           @media (prefers-reduced-motion: reduce) {
