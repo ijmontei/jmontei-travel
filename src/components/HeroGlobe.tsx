@@ -83,6 +83,11 @@ function getTouchDist(t1: Touch, t2: Touch) {
   return Math.sqrt(dx * dx + dy * dy);
 }
 
+function antipode([lon, lat]: [number, number]): [number, number] {
+  const aLon = ((lon + 180 + 540) % 360) - 180; // normalize to [-180, 180]
+  return [aLon, -lat];
+}
+
 /**
  * Quick centroid approximation for Polygon/MultiPolygon.
  * (Good enough for marker + route anchoring.)
@@ -153,7 +158,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
   // Tuning
   const ZOOM_MIN = 1;
-  const ZOOM_MAX = 4;
+  const ZOOM_MAX = 6; // ✅ allow more zoom
 
   const size = 320;
   const center = size / 2;
@@ -179,42 +184,41 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
   useEffect(() => {
     const SPEED = 25; // deg/sec
     const RAMP = 10; // higher = snappier ramp back
-    const ZOOM_STOP_AT = 1.02; // stop auto-spin when zoomed in past this
-  
+    const ZOOM_STOP_AT = 1.02; // ✅ stop auto-spin when zoomed in past this
+
     let raf = 0;
     let last = performance.now();
     let spinSpeed = SPEED;
-  
+
     const tick = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
-  
+
       const zoomedIn = zoomRef.current > ZOOM_STOP_AT;
       const interacting = draggingRef.current;
-  
+
       // ✅ If zoomed in OR dragging, pause auto-spin
       const target = zoomedIn || interacting ? 0 : SPEED;
-  
+
       // smooth ramp to target speed
       spinSpeed += (target - spinSpeed) * (1 - Math.exp(-RAMP * dt));
-  
+
       if (Math.abs(spinSpeed) > 0.001) {
         setRotLon((r) => (r + spinSpeed * dt) % 360);
       }
-  
+
       // ✅ Only “return tilt to default” when user isn't actively dragging
       if (!interacting) {
         const k = 6;
         setRotLat((lat) => lat + (DEFAULT_TILT - lat) * (1 - Math.exp(-k * dt)));
       }
-  
+
       raf = requestAnimationFrame(tick);
     };
-  
+
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, []);
-  
 
   const visitedSet = useMemo(() => {
     const set = new Set<string>();
@@ -249,6 +253,33 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
   const visitedBorder = "#945f10";
 
   const viewCenterLonLat = useMemo<[number, number]>(() => [-rotLon, -rotLat], [rotLon, rotLat]);
+
+  // --- Dynamic 3D lighting (sun highlight + night shadow) ---
+  // Pick a fixed “sun” direction in world lon/lat. Tune these for your favorite look.
+  // This combo tends to give a dramatic top-left / rim-lit vibe.
+  const SUN_LON_LAT: [number, number] = useMemo(() => [-95, 25], []);
+
+  // Use a FIXED-radius shading projection (ignores zoom/pan so shading stays perfectly contained)
+  const shadeProj = useMemo(() => {
+    return geoOrthographic()
+      .scale(baseRadius)
+      .translate([center, center])
+      .clipAngle(180) // allow points from “behind” to project (for crescents)
+      .rotate([rotLon, rotLat]);
+  }, [baseRadius, center, rotLon, rotLat]);
+
+  const sunPt = useMemo(() => {
+    const p = shadeProj(SUN_LON_LAT as any) as [number, number] | null;
+    if (!p) return { x: center - baseRadius * 0.35, y: center - baseRadius * 0.35 };
+    return { x: p[0], y: p[1] };
+  }, [shadeProj, SUN_LON_LAT, center, baseRadius]);
+
+  const nightPt = useMemo(() => {
+    const anti = antipode(SUN_LON_LAT);
+    const p = shadeProj(anti as any) as [number, number] | null;
+    if (!p) return { x: center + baseRadius * 0.35, y: center + baseRadius * 0.35 };
+    return { x: p[0], y: p[1] };
+  }, [shadeProj, SUN_LON_LAT, center, baseRadius]);
 
   // Starfield
   const stars = useMemo(() => {
@@ -374,7 +405,6 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
       if (pts.length < 2) continue;
 
       const d = "M " + pts.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join(" L ");
-
       segs.push({ d, t });
     }
 
@@ -427,7 +457,9 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
       const unpanned = { x: anchor.x - p0.x, y: anchor.y - p0.y };
 
-      const invertFn = (projection as any).invert as ((p: [number, number]) => [number, number] | null) | undefined;
+      const invertFn =
+        (projection as any).invert as ((p: [number, number]) => [number, number] | null) | undefined;
+
       const ll = invertFn?.([unpanned.x, unpanned.y]);
       if (!ll) {
         setZoom(z1);
@@ -447,7 +479,6 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
       }
 
       const pan1 = { x: anchor.x - p1[0], y: anchor.y - p1[1] };
-
       setZoom(z1);
       setPan(pan1);
     };
@@ -571,6 +602,10 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
   // Cursor feedback: now draggable at all times
   const cursorClass = "cursor-grab active:cursor-grabbing";
 
+  // Palette (ocean)
+  const oceanFillA = oceanA;
+  const oceanFillB = oceanB;
+
   return (
     <div className="mt-0">
       <div
@@ -583,34 +618,59 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
         aria-label="Interactive globe. Scroll/pinch to zoom, drag to rotate."
         title="Scroll/pinch to zoom • Drag to rotate"
       >
-        <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full block" style={{ overflow: "hidden" }}>
+        <svg
+          viewBox={`0 0 ${size} ${size}`}
+          className="h-full w-full block"
+          style={{ overflow: "hidden" }}
+        >
           <defs>
-            {/* Ocean shading */}
+            {/* Ocean shading (base) */}
             <radialGradient id="oceanShade" cx="28%" cy="26%" r="78%">
-              <stop offset="0%" stopColor={oceanB} stopOpacity="1" />
-              <stop offset="58%" stopColor={oceanA} stopOpacity="1" />
+              <stop offset="0%" stopColor={oceanFillB} stopOpacity="1" />
+              <stop offset="58%" stopColor={oceanFillA} stopOpacity="1" />
               <stop offset="100%" stopColor="#02040a" stopOpacity="1" />
             </radialGradient>
 
-            {/* Terminator shading */}
-            <radialGradient id="terminator" cx="36%" cy="40%" r="80%">
-              <stop offset="0%" stopColor="rgba(0,0,0,0)" />
-              <stop offset="55%" stopColor="rgba(0,0,0,0.10)" />
-              <stop offset="100%" stopColor="rgba(0,0,0,0.52)" />
+            {/* ✅ Dynamic sun highlight (moves with rotation) */}
+            <radialGradient
+              id="sunHighlight"
+              gradientUnits="userSpaceOnUse"
+              cx={sunPt.x}
+              cy={sunPt.y}
+              r={baseRadius * 1.35}
+            >
+              <stop offset="0%" stopColor="rgba(255, 210, 130, 0.38)" />
+              <stop offset="28%" stopColor="rgba(255, 210, 130, 0.16)" />
+              <stop offset="55%" stopColor="rgba(255, 210, 130, 0.05)" />
+              <stop offset="100%" stopColor="rgba(255, 210, 130, 0)" />
             </radialGradient>
 
-            {/* Atmosphere glow */}
-            <radialGradient id="atmo" cx="35%" cy="30%" r="75%">
-              <stop offset="0%" stopColor="rgba(143,211,255,0.08)" />
-              <stop offset="60%" stopColor="rgba(143,211,255,0.03)" />
-              <stop offset="100%" stopColor="rgba(143,211,255,0)" />
+            {/* ✅ Dynamic night shadow / terminator (moves with rotation) */}
+            <radialGradient
+              id="nightShade"
+              gradientUnits="userSpaceOnUse"
+              cx={nightPt.x}
+              cy={nightPt.y}
+              r={baseRadius * 1.55}
+            >
+              <stop offset="0%" stopColor="rgba(0,0,0,0.78)" />
+              <stop offset="40%" stopColor="rgba(0,0,0,0.55)" />
+              <stop offset="62%" stopColor="rgba(0,0,0,0.26)" />
+              <stop offset="74%" stopColor="rgba(0,0,0,0.10)" />
+              <stop offset="100%" stopColor="rgba(0,0,0,0)" />
             </radialGradient>
 
-            {/* Specular highlight */}
-            <radialGradient id="spec" cx="30%" cy="28%" r="55%">
-              <stop offset="0%" stopColor="rgba(255,255,255,0.14)" />
-              <stop offset="40%" stopColor="rgba(255,255,255,0.05)" />
-              <stop offset="70%" stopColor="rgba(255,255,255,0)" />
+            {/* Subtle limb darkening to add spherical depth */}
+            <radialGradient
+              id="limb"
+              gradientUnits="userSpaceOnUse"
+              cx={center}
+              cy={center}
+              r={baseRadius * 1.05}
+            >
+              <stop offset="55%" stopColor="rgba(0,0,0,0)" />
+              <stop offset="78%" stopColor="rgba(0,0,0,0.10)" />
+              <stop offset="100%" stopColor="rgba(0,0,0,0.28)" />
             </radialGradient>
 
             {/* ✅ Clip to the fixed visible sphere */}
@@ -674,7 +734,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
             {/* Soft outer shadow */}
             <filter id="sphereShadow" x="-25%" y="-25%" width="150%" height="150%">
-              <feDropShadow dx="0" dy="6" stdDeviation="8" floodColor="#000" floodOpacity="0.10" />
+              <feDropShadow dx="0" dy="6" stdDeviation="8" floodColor="#000" floodOpacity="0.12" />
             </filter>
           </defs>
 
@@ -686,16 +746,21 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
           </g>
 
           {/* Shadow OUTSIDE the clip so it looks natural */}
-          <circle cx={center} cy={center} r={baseRadius} fill="transparent" filter="url(#sphereShadow)" />
+          <circle
+            cx={center}
+            cy={center}
+            r={baseRadius}
+            fill="transparent"
+            filter="url(#sphereShadow)"
+          />
 
           {/* ✅ Everything that could ever “spill” is inside the clip */}
           <g clipPath="url(#sphereClip)">
             {/* Ocean fill */}
             <circle cx={center} cy={center} r={baseRadius} fill="url(#oceanShade)" />
 
-            {/* Atmo/spec */}
-            <circle cx={center} cy={center} r={baseRadius} fill="url(#atmo)" />
-            <circle cx={center} cy={center} r={baseRadius} fill="url(#spec)" />
+            {/* ✅ Dynamic sun highlight (adds depth / glow) */}
+            <circle cx={center} cy={center} r={baseRadius} fill="url(#sunHighlight)" />
 
             {/* ✅ Pan the map layer ONLY (zoom already applied via projection.scale) */}
             <g transform={`translate(${pan.x} ${pan.y})`}>
@@ -780,7 +845,13 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
                     ) : null}
 
                     {isVisited ? (
-                      <path d={d} fill={glowGold} opacity={0.55} className="visited-pulse" filter="url(#goldGlow)" />
+                      <path
+                        d={d}
+                        fill={glowGold}
+                        opacity={0.55}
+                        className="visited-pulse"
+                        filter="url(#goldGlow)"
+                      />
                     ) : null}
 
                     <path
@@ -822,8 +893,11 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
               ) : null}
             </g>
 
-            {/* Terminator on top, clipped */}
-            <circle cx={center} cy={center} r={baseRadius} fill="url(#terminator)" />
+            {/* ✅ Dynamic night shadow / terminator crest */}
+            <circle cx={center} cy={center} r={baseRadius} fill="url(#nightShade)" />
+
+            {/* ✅ Limb darkening (adds spherical depth) */}
+            <circle cx={center} cy={center} r={baseRadius} fill="url(#limb)" />
           </g>
         </svg>
 
