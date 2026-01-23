@@ -579,6 +579,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
         ref={containerRef}
         className={[
           "relative w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] md:w-[320px] md:h-[320px] mx-auto select-none",
+          "mb-10 sm:mb-12 md:mb-14", 
           cursorClass,
         ].join(" ")}
         style={{ touchAction: "none" }}

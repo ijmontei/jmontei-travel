@@ -107,7 +107,7 @@ export function HomeView({ posts }: { posts: Post[] }) {
           </div>
 
           {/* Then headline + toggle */}
-          <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="mt-3 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <h2 className="text-xl font-semibold tracking-tight text-[hsl(var(--text))]">
                 Stories and photos from the road.
