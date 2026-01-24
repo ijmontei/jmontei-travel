@@ -77,6 +77,10 @@ function clamp(v: number, min: number, max: number) {
   return Math.min(max, Math.max(min, v));
 }
 
+function wrap(v: number, size: number) {
+  return ((v % size) + size) % size;
+}
+
 function getTouchDist(t1: Touch, t2: Touch) {
   const dx = t1.clientX - t2.clientX;
   const dy = t1.clientY - t2.clientY;
@@ -151,14 +155,6 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
   const dragStartLonRef = useRef(0);
   const dragStartLatRef = useRef(DEFAULT_TILT);
 
-  // --- NEW: background parallax driven by rotation + drag velocity ---
-  const lastRotLonRef = useRef(rotLon);
-  const lastRotTRef = useRef<number | null>(null);
-
-  // parallax offsets in "svg px"
-  const [bgNebula, setBgNebula] = useState({ x: 0, y: 0 });
-  const [bgStars, setBgStars] = useState({ x: 0, y: 0 });
-
   // Tuning
   const ZOOM_MIN = 1;
   const ZOOM_MAX = 4;
@@ -166,6 +162,15 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
   const size = 320;
   const center = size / 2;
   const baseRadius = size * 0.42;
+
+  // ===== Space / cosmic backdrop tuning =====
+  const SPACE_SCALE = 3.2; // bigger = less "boxed" / more infinite feel
+  const spaceW = size * SPACE_SCALE;
+  const spaceH = size * SPACE_SCALE;
+
+  const [spaceOffset, setSpaceOffset] = useState({ x: 0, y: 0 });
+  const lastRotLonRef = useRef(0);
+  const lastRotTRef = useRef<number | null>(null);
 
   // Load topojson
   useEffect(() => {
@@ -200,7 +205,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
       const zoomedIn = zoomRef.current > ZOOM_STOP_AT;
       const interacting = draggingRef.current;
 
-      // ✅ If zoomed in OR dragging, pause auto-spin
+      // If zoomed in OR dragging, pause auto-spin
       const target = zoomedIn || interacting ? 0 : SPEED;
 
       // smooth ramp to target speed
@@ -210,7 +215,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
         setRotLon((r) => (r + spinSpeed * dt) % 360);
       }
 
-      // ✅ Only “return tilt to default” when user isn't actively dragging
+      // Only “return tilt to default” when user isn't actively dragging
       if (!interacting) {
         const k = 6;
         setRotLat((lat) => lat + (DEFAULT_TILT - lat) * (1 - Math.exp(-k * dt)));
@@ -223,7 +228,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  // --- NEW: compute “spin direction + speed” → parallax offsets for nebula + stars
+  // Make background "space" drift with rotation direction (infinite wrap)
   useEffect(() => {
     const now = performance.now();
     const lastT = lastRotTRef.current ?? now;
@@ -232,37 +237,18 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
     const prev = lastRotLonRef.current;
     let d = rotLon - prev;
-
-    // handle wrap-around near 0/360
     if (d > 180) d -= 360;
     if (d < -180) d += 360;
-
     lastRotLonRef.current = rotLon;
 
-    // deg/sec (signed)
-    const vel = d / dt;
+    const vel = d / dt; // deg/sec (signed)
 
-    // Convert to subtle px parallax.
-    // Stars move more than nebula. Clamp so it never drifts too far.
-    const targetNebulaX = clamp(vel * 0.04, -9, 9);
-    const targetStarsX = clamp(vel * 0.085, -18, 18);
+    // Convert signed velocity to parallax drift. Clamp to keep it subtle.
+    const dx = clamp(vel * 0.45, -16, 16); // "px per second-ish"
+    const dy = clamp((rotLat - DEFAULT_TILT) * 0.06, -3, 3);
 
-    // Add a tiny “tilt” coupling so vertical movement feels alive, but subtle.
-    const targetNebulaY = clamp((rotLat - DEFAULT_TILT) * 0.08, -6, 6);
-    const targetStarsY = clamp((rotLat - DEFAULT_TILT) * 0.12, -9, 9);
-
-    // Smooth to target so it feels “inertial”
-    const SMOOTH = 0.14;
-
-    setBgNebula((p) => ({
-      x: p.x + (targetNebulaX - p.x) * SMOOTH,
-      y: p.y + (targetNebulaY - p.y) * SMOOTH,
-    }));
-
-    setBgStars((p) => ({
-      x: p.x + (targetStarsX - p.x) * SMOOTH,
-      y: p.y + (targetStarsY - p.y) * SMOOTH,
-    }));
+    // accumulate; we'll wrap per-element at render time
+    setSpaceOffset((p) => ({ x: p.x + dx * dt * 60, y: p.y + dy * dt * 60 }));
   }, [rotLon, rotLat]);
 
   const visitedSet = useMemo(() => {
@@ -287,7 +273,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
   const pathGen = geoPath(projection);
 
-  // Palette
+  // Palette (globe)
   const oceanA = "#050b15";
   const oceanB = "#0b1a33";
   const landBase = "rgba(255,255,255,0.04)";
@@ -299,38 +285,42 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
   const viewCenterLonLat = useMemo<[number, number]>(() => [-rotLon, -rotLat], [rotLon, rotLat]);
 
-  // Stars (foreground stars that move with spin)
+  // ===== Stars + nebula (generated in oversized "space field" so it's never boxed) =====
   const stars = useMemo(() => {
-    const rand = mulberry32(hashString("stars"));
+    const rand = mulberry32(hashString("stars-v3"));
     const pts: { x: number; y: number; r: number; o: number; tw: number }[] = [];
-    const n = 140;
+    const n = 320;
 
     for (let i = 0; i < n; i++) {
-      const x = rand() * size;
-      const y = rand() * size;
-      const r = 0.5 + rand() * 1.5;
-      const o = 0.03 + rand() * 0.14;
-      const tw = rand(); // twinkle phase
+      const x = rand() * spaceW;
+      const y = rand() * spaceH;
+
+      // many small, few big
+      const t = rand();
+      const r = t < 0.92 ? 0.35 + rand() * 0.9 : 1.1 + rand() * 1.6;
+      const o = t < 0.92 ? 0.03 + rand() * 0.09 : 0.12 + rand() * 0.22;
+      const tw = rand(); // twinkle phase variance
+
       pts.push({ x, y, r, o, tw });
     }
     return pts;
-  }, [size]);
+  }, [spaceW, spaceH]);
 
-  // Nebula specks (faint cosmic dust that also moves, but less than stars)
-  const nebulaSpecks = useMemo(() => {
-    const rand = mulberry32(hashString("nebula"));
-    const pts: { x: number; y: number; r: number; o: number }[] = [];
-    const n = 34;
+  const nebulaDust = useMemo(() => {
+    const rand = mulberry32(hashString("nebula-v3"));
+    const pts: { x: number; y: number; r: number; o: number; kind: number }[] = [];
+    const n = 56;
 
     for (let i = 0; i < n; i++) {
-      const x = rand() * size;
-      const y = rand() * size;
-      const r = 18 + rand() * 42;
-      const o = 0.03 + rand() * 0.07;
-      pts.push({ x, y, r, o });
+      const x = rand() * spaceW;
+      const y = rand() * spaceH;
+      const r = 42 + rand() * 110;
+      const o = 0.012 + rand() * 0.055;
+      const kind = rand(); // pick hue family
+      pts.push({ x, y, r, o, kind });
     }
     return pts;
-  }, [size]);
+  }, [spaceW, spaceH]);
 
   // City lights per visited country
   const lightsByCountry = useMemo(() => {
@@ -637,47 +627,75 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
   // Cursor feedback: now draggable at all times
   const cursorClass = "cursor-grab active:cursor-grabbing";
 
+  // Space disc sizing (behind planet)
+  const spaceDiscR = baseRadius * 2.05;
+
   return (
     <div className="mt-0">
       <div
         ref={containerRef}
         className={[
-          "relative w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] md:w-[320px] md:h-[320px] mx-auto select-none",
+          // Give the halo room so the diffusion reads nicely (feel free to dial these back)
+          "relative w-[260px] h-[260px] sm:w-[300px] sm:h-[300px] md:w-[360px] md:h-[360px] mx-auto select-none",
           cursorClass,
         ].join(" ")}
         style={{ touchAction: "none" }}
         aria-label="Interactive globe. Scroll/pinch to zoom, drag to rotate."
         title="Scroll/pinch to zoom • Drag to rotate"
       >
-        <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full block" style={{ overflow: "hidden" }}>
+        <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full block" style={{ overflow: "visible" }}>
           <defs>
-            {/* === NEW: Static dark halo behind planet (bigger than planet) === */}
-            <radialGradient id="bgHalo" cx="50%" cy="45%" r="70%">
-              <stop offset="0%" stopColor="rgba(0,0,0,0.78)" />
-              <stop offset="45%" stopColor="rgba(0,0,0,0.55)" />
-              <stop offset="78%" stopColor="rgba(0,0,0,0.25)" />
+            {/* ========= COSMIC BACKDROP (infinite parallax) ========= */}
+            <clipPath id="spaceDisc">
+              <circle cx={center} cy={center} r={spaceDiscR} />
+            </clipPath>
+
+            {/* Soft fade so disc dissolves into page background */}
+            <radialGradient id="spaceFade" cx="50%" cy="50%" r="70%">
+              <stop offset="0%" stopColor="rgba(255,255,255,1)" />
+              <stop offset="72%" stopColor="rgba(255,255,255,0.95)" />
+              <stop offset="90%" stopColor="rgba(255,255,255,0.25)" />
+              <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+            </radialGradient>
+            <mask id="spaceFadeMask">
+              <circle cx={center} cy={center} r={spaceDiscR} fill="url(#spaceFade)" />
+            </mask>
+
+            {/* Void-black base halo */}
+            <radialGradient id="voidHalo" cx="50%" cy="50%" r="70%">
+              <stop offset="0%" stopColor="rgba(0,0,0,0.96)" />
+              <stop offset="32%" stopColor="rgba(0,0,0,0.80)" />
+              <stop offset="60%" stopColor="rgba(0,0,0,0.42)" />
+              <stop offset="82%" stopColor="rgba(0,0,0,0.14)" />
               <stop offset="100%" stopColor="rgba(0,0,0,0)" />
             </radialGradient>
 
-            {/* === NEW: Cosmic nebula gradient (will parallax slightly) === */}
-            <radialGradient id="nebulaA" cx="32%" cy="32%" r="65%">
-              <stop offset="0%" stopColor="rgba(130, 90, 255, 0.16)" />
-              <stop offset="38%" stopColor="rgba(80, 200, 255, 0.10)" />
-              <stop offset="70%" stopColor="rgba(255, 120, 200, 0.06)" />
-              <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+            {/* Blue cosmic band vibes (inspired by your reference) */}
+            <radialGradient id="celestialA" cx="42%" cy="42%" r="80%">
+              <stop offset="0%" stopColor="rgba(70, 140, 255, 0.10)" />
+              <stop offset="38%" stopColor="rgba(65, 120, 255, 0.06)" />
+              <stop offset="72%" stopColor="rgba(0,0,0,0)" />
+            </radialGradient>
+            <radialGradient id="celestialB" cx="60%" cy="56%" r="85%">
+              <stop offset="0%" stopColor="rgba(120, 170, 255, 0.08)" />
+              <stop offset="46%" stopColor="rgba(90, 140, 255, 0.04)" />
+              <stop offset="78%" stopColor="rgba(0,0,0,0)" />
             </radialGradient>
 
-            <radialGradient id="nebulaB" cx="70%" cy="58%" r="70%">
-              <stop offset="0%" stopColor="rgba(80, 200, 255, 0.12)" />
-              <stop offset="42%" stopColor="rgba(245, 222, 136, 0.08)" />
-              <stop offset="78%" stopColor="rgba(120, 90, 255, 0.06)" />
-              <stop offset="100%" stopColor="rgba(0,0,0,0)" />
-            </radialGradient>
+            {/* Slight blur for nebula dust */}
+            <filter id="nebulaBlur" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation="14" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
 
+            {/* ========= GLOBE SHADING ========= */}
             {/* Ocean shading */}
             <radialGradient id="oceanShade" cx="28%" cy="26%" r="78%">
-              <stop offset="0%" stopColor="#0b1a33" stopOpacity="1" />
-              <stop offset="58%" stopColor="#050b15" stopOpacity="1" />
+              <stop offset="0%" stopColor={oceanB} stopOpacity="1" />
+              <stop offset="58%" stopColor={oceanA} stopOpacity="1" />
               <stop offset="100%" stopColor="#02040a" stopOpacity="1" />
             </radialGradient>
 
@@ -688,11 +706,19 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
               <stop offset="100%" stopColor="rgba(0,0,0,0.52)" />
             </radialGradient>
 
-            {/* Atmosphere glow */}
-            <radialGradient id="atmo" cx="35%" cy="30%" r="75%">
-              <stop offset="0%" stopColor="rgba(143,211,255,0.08)" />
-              <stop offset="60%" stopColor="rgba(143,211,255,0.03)" />
-              <stop offset="100%" stopColor="rgba(143,211,255,0)" />
+            {/* Atmosphere glow (boosted + bluer to match your reference) */}
+            <radialGradient id="atmo" cx="42%" cy="36%" r="85%">
+              <stop offset="0%" stopColor="rgba(120,190,255,0.08)" />
+              <stop offset="55%" stopColor="rgba(120,190,255,0.03)" />
+              <stop offset="100%" stopColor="rgba(120,190,255,0)" />
+            </radialGradient>
+
+            {/* Outer rim aura (blue halo ring like your reference) */}
+            <radialGradient id="rimAura" cx="50%" cy="50%" r="52%">
+              <stop offset="0%" stopColor="rgba(90,160,255,0)" />
+              <stop offset="72%" stopColor="rgba(90,160,255,0.00)" />
+              <stop offset="86%" stopColor="rgba(90,160,255,0.22)" />
+              <stop offset="100%" stopColor="rgba(90,160,255,0.00)" />
             </radialGradient>
 
             {/* Specular highlight */}
@@ -702,7 +728,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
               <stop offset="70%" stopColor="rgba(255,255,255,0)" />
             </radialGradient>
 
-            {/* ✅ Clip to the fixed visible sphere */}
+            {/* Clip to the fixed visible sphere */}
             <clipPath id="sphereClip">
               <circle cx={center} cy={center} r={baseRadius} />
             </clipPath>
@@ -763,58 +789,97 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
             {/* Soft outer shadow */}
             <filter id="sphereShadow" x="-25%" y="-25%" width="150%" height="150%">
-              <feDropShadow dx="0" dy="6" stdDeviation="8" floodColor="#000" floodOpacity="0.10" />
+              <feDropShadow dx="0" dy="6" stdDeviation="8" floodColor="#000" floodOpacity="0.14" />
+            </filter>
+
+            {/* Slight glow for the aura ring */}
+            <filter id="auraGlow" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation="4.5" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
             </filter>
           </defs>
 
-          {/* === 1) Static halo gradient behind planet (does NOT move) === */}
-          <circle cx={center} cy={center} r={baseRadius * 1.85} fill="url(#bgHalo)" />
+          {/* ========= COSMIC DISC (behind globe, infinite parallax, NOT boxed) ========= */}
+          <g clipPath="url(#spaceDisc)" mask="url(#spaceFadeMask)">
+            {/* base void */}
+            <rect x={0} y={0} width={size} height={size} fill="rgba(0,0,0,0.78)" />
 
-          {/* === 2) Cosmic background layer (parallax a bit, stays behind stars) === */}
-          <g transform={`translate(${bgNebula.x.toFixed(2)} ${bgNebula.y.toFixed(2)})`} opacity={0.9}>
-            <rect x={0} y={0} width={size} height={size} fill="url(#nebulaA)" />
-            <rect x={0} y={0} width={size} height={size} fill="url(#nebulaB)" />
+            {/* large soft halo */}
+            <circle cx={center} cy={center} r={spaceDiscR} fill="url(#voidHalo)" />
 
-            {/* soft nebula “dust” blobs */}
-            {nebulaSpecks.map((p, i) => (
-              <circle key={`neb-${i}`} cx={p.x} cy={p.y} r={p.r} fill="rgba(120, 90, 255, 1)" opacity={p.o} />
-            ))}
-            {nebulaSpecks.map((p, i) => (
-              <circle
-                key={`neb2-${i}`}
-                cx={(p.x + 38) % size}
-                cy={(p.y + 22) % size}
-                r={p.r * 0.72}
-                fill="rgba(80, 200, 255, 1)"
-                opacity={p.o * 0.9}
-              />
-            ))}
+            {/* subtle blue cosmic tints (stays centered, helps match reference vibe) */}
+            <rect x={0} y={0} width={size} height={size} fill="url(#celestialA)" opacity={0.95} />
+            <rect x={0} y={0} width={size} height={size} fill="url(#celestialB)" opacity={0.9} />
+
+            {(() => {
+              // wrap offsets so motion is infinite
+              const nebX = wrap(spaceOffset.x * 0.55, spaceW);
+              const nebY = wrap(spaceOffset.y * 0.55, spaceH);
+              const starX = wrap(spaceOffset.x * 1.0, spaceW);
+              const starY = wrap(spaceOffset.y * 1.0, spaceH);
+
+              const baseX = center - spaceW / 2;
+              const baseY = center - spaceH / 2;
+
+              return (
+                <>
+                  {/* nebula dust (slow parallax, super subtle + blurred) */}
+                  <g opacity={0.62} filter="url(#nebulaBlur)">
+                    {nebulaDust.map((p, i) => {
+                      const x = baseX + wrap(p.x + nebX, spaceW);
+                      const y = baseY + wrap(p.y + nebY, spaceH);
+
+                      // blue-violet band look like reference
+                      const fill =
+                        p.kind < 0.55
+                          ? "rgba(90, 150, 255, 1)"
+                          : p.kind < 0.8
+                          ? "rgba(80, 120, 255, 1)"
+                          : "rgba(120, 170, 255, 1)";
+
+                      return <circle key={`dust-${i}`} cx={x} cy={y} r={p.r} fill={fill} opacity={p.o} />;
+                    })}
+                  </g>
+
+                  {/* stars (faster parallax, in front) */}
+                  <g opacity={0.92} className="starfield">
+                    {stars.map((s, i) => {
+                      const x = baseX + wrap(s.x + starX, spaceW);
+                      const y = baseY + wrap(s.y + starY, spaceH);
+                      return (
+                        <circle
+                          key={`star-${i}`}
+                          cx={x}
+                          cy={y}
+                          r={s.r}
+                          fill="#ffffff"
+                          opacity={s.o}
+                          className={`twinkle tw-${Math.floor(s.tw * 6)}`}
+                        />
+                      );
+                    })}
+                  </g>
+                </>
+              );
+            })()}
           </g>
 
-          {/* === 3) Stars in FRONT of nebula, moving more with spin direction === */}
-          <g
-            transform={`translate(${bgStars.x.toFixed(2)} ${bgStars.y.toFixed(2)})`}
-            opacity={0.85}
-            className="starfield"
-          >
-            {stars.map((s, i) => (
-              <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#ffffff" opacity={s.o} className="twinkle" />
-            ))}
-          </g>
-
-          {/* Shadow OUTSIDE the clip so it looks natural */}
+          {/* ========= Planet shadow (subtle, helps "float") ========= */}
           <circle cx={center} cy={center} r={baseRadius} fill="transparent" filter="url(#sphereShadow)" />
 
-          {/* ✅ Everything that could ever “spill” is inside the clip */}
+          {/* ========= Globe (clipped) ========= */}
           <g clipPath="url(#sphereClip)">
             {/* Ocean fill */}
             <circle cx={center} cy={center} r={baseRadius} fill="url(#oceanShade)" />
 
-            {/* Atmo/spec */}
+            {/* Atmosphere + spec */}
             <circle cx={center} cy={center} r={baseRadius} fill="url(#atmo)" />
             <circle cx={center} cy={center} r={baseRadius} fill="url(#spec)" />
 
-            {/* ✅ Pan the map layer ONLY (zoom already applied via projection.scale) */}
+            {/* Pan the map layer ONLY (zoom already applied via projection.scale) */}
             <g transform={`translate(${pan.x} ${pan.y})`}>
               {/* ROUTE */}
               {routeSegments.length ? (
@@ -857,7 +922,12 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
                     return (
                       <g key={`node-${i}`}>
-                        <circle cx={n.x} cy={n.y} r={r * 2.2} fill={`rgba(${routeColor},${0.10 + 0.05 * n.t})`} />
+                        <circle
+                          cx={n.x}
+                          cy={n.y}
+                          r={r * 2.2}
+                          fill={`rgba(${routeColor},${0.10 + 0.05 * n.t})`}
+                        />
                         <circle cx={n.x} cy={n.y} r={r} fill={`rgba(${routeColor},${a})`} />
                         <circle
                           cx={n.x - 0.6}
@@ -897,9 +967,9 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
                     <path
                       d={d}
-                      fill={isVisited ? glowGold : "rgba(255,255,255,0.04)"}
+                      fill={isVisited ? glowGold : landBase}
                       opacity={isVisited ? 0.82 : 1}
-                      stroke={isVisited ? "#945f10" : "rgba(170, 195, 230, 0.14)"}
+                      stroke={isVisited ? visitedBorder : border}
                       strokeWidth={isVisited ? 1.05 : 0.7}
                       filter={isVisited ? "url(#goldBorderGlow)" : undefined}
                       className={isVisited ? "visited-border-pulse" : undefined}
@@ -937,36 +1007,22 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
             {/* Terminator on top, clipped */}
             <circle cx={center} cy={center} r={baseRadius} fill="url(#terminator)" />
           </g>
+
+          {/* ========= Outer rim aura (on top of globe) ========= */}
+          <circle
+            cx={center}
+            cy={center}
+            r={baseRadius * 1.02}
+            fill="none"
+            stroke="rgba(110, 175, 255, 0.55)"
+            strokeWidth={1.25}
+            opacity={0.22}
+            filter="url(#auraGlow)"
+          />
+          <circle cx={center} cy={center} r={baseRadius * 1.02} fill="url(#rimAura)" opacity={0.85} />
         </svg>
 
         <style jsx>{`
-          /* super subtle twinkle */
-          .twinkle {
-            animation: tw 5.5s ease-in-out infinite;
-          }
-          @keyframes tw {
-            0% {
-              opacity: 0.35;
-            }
-            50% {
-              opacity: 0.85;
-            }
-            100% {
-              opacity: 0.35;
-            }
-          }
-
-          /* keep twinkles desynced */
-          .starfield circle:nth-child(3n) {
-            animation-duration: 6.2s;
-          }
-          .starfield circle:nth-child(4n) {
-            animation-duration: 7.1s;
-          }
-          .starfield circle:nth-child(5n) {
-            animation-duration: 4.8s;
-          }
-
           .visited-pulse {
             animation: pulseGlow 4.6s ease-in-out infinite;
             transform-origin: 50% 50%;
@@ -1046,6 +1102,42 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
             to {
               stroke-dashoffset: -140;
             }
+          }
+
+          /* Subtle star twinkle (not sparkly) */
+          .twinkle {
+            animation: tw 7.5s ease-in-out infinite;
+          }
+          @keyframes tw {
+            0% {
+              opacity: 0.25;
+            }
+            50% {
+              opacity: 0.9;
+            }
+            100% {
+              opacity: 0.25;
+            }
+          }
+
+          /* Stagger phases */
+          .tw-0 {
+            animation-delay: -0s;
+          }
+          .tw-1 {
+            animation-delay: -1.1s;
+          }
+          .tw-2 {
+            animation-delay: -2.2s;
+          }
+          .tw-3 {
+            animation-delay: -3.3s;
+          }
+          .tw-4 {
+            animation-delay: -4.4s;
+          }
+          .tw-5 {
+            animation-delay: -5.5s;
           }
 
           ${Array.from({ length: 24 })
