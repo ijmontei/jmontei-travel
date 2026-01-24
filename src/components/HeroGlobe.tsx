@@ -177,43 +177,44 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
   // Auto spin with smooth ramp back after user interaction + tilt returns to default
   useEffect(() => {
-    const SPEED = 25; // deg/sec
-    const RAMP = 10; // higher = snappier ramp back
-    const ZOOM_STOP_AT = 1.02; // stop auto-spin when zoomed in past this
+  const SPEED = 25; // deg/sec
+  const RAMP = 10; // higher = snappier ramp back
+  const ZOOM_STOP_AT = 1.02; // stop auto-spin when zoomed in past this
 
-    let raf = 0;
-    let last = performance.now();
-    let spinSpeed = SPEED;
+  let raf = 0;
+  let last = performance.now();
+  let spinSpeed = SPEED;
 
-    const tick = (now: number) => {
-      const dt = (now - last) / 1000;
-      last = now;
+  const tick = (now: number) => {
+    const dt = (now - last) / 1000;
+    last = now;
 
-      const zoomedIn = zoomRef.current > ZOOM_STOP_AT;
-      const interacting = draggingRef.current;
+    const zoomedIn = zoomRef.current > ZOOM_STOP_AT;
+    const interacting = draggingRef.current;
 
-      // pause auto-spin if zoomed in OR dragging
-      const target = zoomedIn || interacting ? 0 : SPEED;
+    // ✅ If zoomed in OR dragging, pause auto-spin
+    const target = zoomedIn || interacting ? 0 : SPEED;
 
-      // smooth ramp to target speed
-      spinSpeed += (target - spinSpeed) * (1 - Math.exp(-RAMP * dt));
+    // smooth ramp to target speed
+    spinSpeed += (target - spinSpeed) * (1 - Math.exp(-RAMP * dt));
 
-      if (Math.abs(spinSpeed) > 0.001) {
-        setRotLon((r) => (r + spinSpeed * dt) % 360);
-      }
+    if (Math.abs(spinSpeed) > 0.001) {
+      setRotLon((r) => (r + spinSpeed * dt) % 360);
+    }
 
-      // return tilt to default when not dragging
-      if (!interacting) {
-        const k = 6;
-        setRotLat((lat) => lat + (DEFAULT_TILT - lat) * (1 - Math.exp(-k * dt)));
-      }
-
-      raf = requestAnimationFrame(tick);
-    };
+    // ✅ Only “return tilt to default” when user isn't actively dragging
+    if (!interacting) {
+      const k = 6;
+      setRotLat((lat) => lat + (DEFAULT_TILT - lat) * (1 - Math.exp(-k * dt)));
+    }
 
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
+  };
+
+  raf = requestAnimationFrame(tick);
+  return () => cancelAnimationFrame(raf);
+}, []);
+
 
   const visitedSet = useMemo(() => {
     const set = new Set<string>();
@@ -248,11 +249,6 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
   const visitedBorder = "#945f10";
 
   const viewCenterLonLat = useMemo<[number, number]>(() => [-rotLon, -rotLat], [rotLon, rotLat]);
-
-  // --- Aura: tight + strong center, void black at globe edge ---
-  const auraR = baseRadius * 1.18; // tight (won't invade other layout elements)
-  const auraBlur = 12; // tighter blur for a punchy falloff
-  const auraEdgePct = clamp((baseRadius / auraR) * 100, 0, 100); // where the globe edge lands inside the aura circle
 
   // Starfield
   const stars = useMemo(() => {
@@ -605,8 +601,8 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
             {/* Atmosphere glow */}
             <radialGradient id="atmo" cx="35%" cy="30%" r="75%">
-              <stop offset="0%" stopColor="rgba(143,211,255,0.10)" />
-              <stop offset="55%" stopColor="rgba(143,211,255,0.04)" />
+              <stop offset="0%" stopColor="rgba(143,211,255,0.08)" />
+              <stop offset="60%" stopColor="rgba(143,211,255,0.03)" />
               <stop offset="100%" stopColor="rgba(143,211,255,0)" />
             </radialGradient>
 
@@ -616,48 +612,6 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
               <stop offset="40%" stopColor="rgba(255,255,255,0.05)" />
               <stop offset="70%" stopColor="rgba(255,255,255,0)" />
             </radialGradient>
-
-            {/* ✅ Tight cosmic aura behind globe (CIRCULAR, fades to 0 at edges) */}
-            <radialGradient
-              id="spaceAura"
-              gradientUnits="userSpaceOnUse"
-              cx={center}
-              cy={center}
-              r={auraR}
-            >
-              {/* strong core */}
-              <stop offset="0%" stopColor="rgba(0,0,0,0.98)" />
-              <stop offset="18%" stopColor="rgba(0,0,0,0.92)" />
-
-              {/* VOID black right around the globe edge */}
-              <stop offset={`${Math.max(22, auraEdgePct - 10).toFixed(1)}%`} stopColor="rgba(0,0,0,0.96)" />
-              <stop offset={`${auraEdgePct.toFixed(1)}%`} stopColor="rgba(0,0,0,0.96)" />
-
-              {/* slight blue energy just outside globe edge */}
-              <stop offset={`${Math.min(100, auraEdgePct + 6).toFixed(1)}%`} stopColor="rgba(45,105,190,0.26)" />
-              <stop offset={`${Math.min(100, auraEdgePct + 14).toFixed(1)}%`} stopColor="rgba(25,55,115,0.18)" />
-
-              {/* fade out quickly so it doesn't invade layout */}
-              <stop offset="78%" stopColor="rgba(0,0,0,0.07)" />
-              <stop offset="100%" stopColor="rgba(0,0,0,0.00)" />
-            </radialGradient>
-
-            <filter id="auraBlur" x="-80%" y="-80%" width="260%" height="260%">
-              <feGaussianBlur stdDeviation={auraBlur} result="b" />
-              <feMerge>
-                <feMergeNode in="b" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-
-            {/* Thin blue halo ring around the planet */}
-            <filter id="haloGlow" x="-80%" y="-80%" width="260%" height="260%">
-              <feGaussianBlur stdDeviation="2.2" result="b" />
-              <feMerge>
-                <feMergeNode in="b" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
 
             {/* ✅ Clip to the fixed visible sphere */}
             <clipPath id="sphereClip">
@@ -724,13 +678,8 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
             </filter>
           </defs>
 
-          {/* ✅ AURA (circular, tight, strong center) */}
-          <g opacity={0.9}>
-            <circle cx={center} cy={center} r={auraR} fill="url(#spaceAura)" filter="url(#auraBlur)" />
-          </g>
-
-          {/* STARFIELD (in front of aura) */}
-          <g opacity={0.75}>
+          {/* STARFIELD (stays fixed behind) */}
+          <g opacity={0.}>
             {stars.map((s, i) => (
               <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#ffffff" opacity={s.o} />
             ))}
@@ -738,18 +687,6 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
           {/* Shadow OUTSIDE the clip so it looks natural */}
           <circle cx={center} cy={center} r={baseRadius} fill="transparent" filter="url(#sphereShadow)" />
-
-          {/* Thin halo ring */}
-          <circle
-            cx={center}
-            cy={center}
-            r={baseRadius + 1.2}
-            fill="none"
-            stroke="rgba(120,190,255,0.35)"
-            strokeWidth="2.1"
-            filter="url(#haloGlow)"
-            opacity={0.55}
-          />
 
           {/* ✅ Everything that could ever “spill” is inside the clip */}
           <g clipPath="url(#sphereClip)">
@@ -807,7 +744,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
                           cx={n.x}
                           cy={n.y}
                           r={r * 2.2}
-                          fill={`rgba(${routeColor},${0.1 + 0.05 * n.t})`}
+                          fill={`rgba(${routeColor},${0.10 + 0.05 * n.t})`}
                         />
                         <circle cx={n.x} cy={n.y} r={r} fill={`rgba(${routeColor},${a})`} />
                         <circle
