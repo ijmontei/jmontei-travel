@@ -165,7 +165,14 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
    * - Halo is only slightly larger than the globe
    * - Gradient goes near-black at the outer edge of the halo
    */
-  const haloR = baseRadius * 1.35; // tight diffusion radius
+  // Inner "void" radius (fully opaque space pocket)
+  const voidR = baseRadius * 1.35;
+
+  // Total halo radius (void + feather). 2x makes the visible halo feel doubled.
+  const haloR = voidR * 2.0;
+
+  // Where the feather begins (as a % of the gradient)
+  const voidPct = (voidR / haloR) * 100; // ~50%
 
   // Load topojson
   useEffect(() => {
@@ -637,24 +644,27 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
           }}
         >
           <defs>
-            {/* ===== Cosmic circular background (FIXED) =====
-                Goal: near-black at halo edge, soft diffusion inward, and tight around planet */}
-            <radialGradient id="cosmicHalo" cx="50%" cy="50%" r="75%">
-            {/* transparent near center so it doesn't muddy the planet */}
-            <stop offset="0%" stopColor="rgba(0,0,0,0)" />
-            <stop offset="40%" stopColor="rgba(8,12,24,0.20)" />
-            <stop offset="70%" stopColor="rgba(2,4,10,0.70)" />
-            {/* IMPORTANT: end transparent so it can blend */}
-            <stop offset="100%" stopColor="rgba(0,0,0,0)" />
-          </radialGradient>
-            {/* Feather opacity for halo edge (this is the key) */}
-            <radialGradient id="haloFeather" cx="50%" cy="50%" r="75%">
-            <stop offset="0%" stopColor="white" stopOpacity="1" />
-            <stop offset="84%" stopColor="white" stopOpacity="1" />
-            <stop offset="95%" stopColor="white" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="white" stopOpacity="0" />
-          </radialGradient>
+            {/* ===== Cosmic halo: fully dark "void" until voidR, then fades out ===== */}
+            <radialGradient id="cosmicHalo" cx="50%" cy="50%" r="50%">
+              {/* keep center clean-ish */}
+              <stop offset="0%" stopColor="rgba(0,0,0,0)" />
+              <stop offset={`${Math.max(12, voidPct - 32)}%`} stopColor="rgba(6,10,20,0.18)" />
 
+              {/* build into the void */}
+              <stop offset={`${Math.max(30, voidPct - 14)}%`} stopColor="rgba(2,4,10,0.62)" />
+              <stop offset={`${voidPct}%`} stopColor="rgba(0,0,0,0.92)" />
+
+              {/* then gently relax outward (mask will actually fade to 0) */}
+              <stop offset="100%" stopColor="rgba(0,0,0,0.60)" />
+            </radialGradient>
+
+            {/* ===== Opacity feather: FULL opacity through the void zone, then fade to 0 ===== */}
+            <radialGradient id="haloFeather" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="white" stopOpacity="1" />
+              <stop offset={`${voidPct}%`} stopColor="white" stopOpacity="1" />
+              <stop offset={`${Math.min(90, voidPct + 25)}%`} stopColor="white" stopOpacity="0.35" />
+              <stop offset="100%" stopColor="white" stopOpacity="0" />
+            </radialGradient>
 
             <mask id="haloMask">
               <circle cx={center} cy={center} r={haloR} fill="url(#haloFeather)" />
@@ -663,6 +673,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
             <clipPath id="haloClip">
               <circle cx={center} cy={center} r={haloR} />
             </clipPath>
+
 
             {/* Slightly softer than before (helps halo feel “real” without blowing up size) */}
             <filter id="nebulaBlur" x="-60%" y="-60%" width="220%" height="220%">
@@ -801,7 +812,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
             {/* Stars (move more with spin direction) */}
             <g
             filter="url(#starGlow)"
-            opacity={0.92}
+            opacity={0.98}
             transform={`translate(${bgShift.sx.toFixed(2)} ${bgShift.sy.toFixed(2)})`}
           >
             {starField.pts.map((s, i) => {
