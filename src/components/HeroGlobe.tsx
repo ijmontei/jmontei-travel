@@ -117,11 +117,7 @@ function centroidOfFeature(f: any): [number, number] | null {
   return [sx / coords.length, sy / coords.length];
 }
 
-export function HeroGlobe({
-  visitedCountries,
-  currentCountry,
-  routeCountries,
-}: Props) {
+export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: Props) {
   const [features, setFeatures] = useState<any[]>([]);
 
   // --- Rotation (user can drag anytime) ---
@@ -155,12 +151,13 @@ export function HeroGlobe({
   const dragStartLonRef = useRef(0);
   const dragStartLatRef = useRef(DEFAULT_TILT);
 
-  // Track drag velocity (deg/sec) for spin cue
-  const lastMoveTRef = useRef<number | null>(null);
-  const dragVelRef = useRef(0);
+  // --- NEW: background parallax driven by rotation + drag velocity ---
+  const lastRotLonRef = useRef(rotLon);
+  const lastRotTRef = useRef<number | null>(null);
 
-  // Spin cue (0..1)
-  const [spinCue, setSpinCue] = useState(0);
+  // parallax offsets in "svg px"
+  const [bgNebula, setBgNebula] = useState({ x: 0, y: 0 });
+  const [bgStars, setBgStars] = useState({ x: 0, y: 0 });
 
   // Tuning
   const ZOOM_MIN = 1;
@@ -192,16 +189,9 @@ export function HeroGlobe({
     const RAMP = 10; // higher = snappier ramp back
     const ZOOM_STOP_AT = 1.02; // stop auto-spin when zoomed in past this
 
-    // Spin cue tuning
-    const CUE_SMOOTH = 10; // higher = snappier response
-    const CUE_SPEED_FOR_FULL = 85; // deg/sec -> 1.0 intensity
-
     let raf = 0;
     let last = performance.now();
     let spinSpeed = SPEED;
-
-    // internal cue accumulator so we don't jitter
-    let cue = 0;
 
     const tick = (now: number) => {
       const dt = (now - last) / 1000;
@@ -226,25 +216,54 @@ export function HeroGlobe({
         setRotLat((lat) => lat + (DEFAULT_TILT - lat) * (1 - Math.exp(-k * dt)));
       }
 
-      // ---- Spin cue intensity (based on current angular velocity) ----
-      const v = interacting ? Math.abs(dragVelRef.current) : Math.abs(spinSpeed);
-      const targetCue = clamp(v / CUE_SPEED_FOR_FULL, 0, 1);
-
-      // smooth cue
-      cue += (targetCue - cue) * (1 - Math.exp(-CUE_SMOOTH * dt));
-
-      // avoid 60fps rerenders for tiny changes
-      setSpinCue((prev) => {
-        if (Math.abs(prev - cue) < 0.005) return prev;
-        return cue;
-      });
-
       raf = requestAnimationFrame(tick);
     };
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, []);
+
+  // --- NEW: compute “spin direction + speed” → parallax offsets for nebula + stars
+  useEffect(() => {
+    const now = performance.now();
+    const lastT = lastRotTRef.current ?? now;
+    const dt = Math.max((now - lastT) / 1000, 1 / 240);
+    lastRotTRef.current = now;
+
+    const prev = lastRotLonRef.current;
+    let d = rotLon - prev;
+
+    // handle wrap-around near 0/360
+    if (d > 180) d -= 360;
+    if (d < -180) d += 360;
+
+    lastRotLonRef.current = rotLon;
+
+    // deg/sec (signed)
+    const vel = d / dt;
+
+    // Convert to subtle px parallax.
+    // Stars move more than nebula. Clamp so it never drifts too far.
+    const targetNebulaX = clamp(vel * 0.04, -9, 9);
+    const targetStarsX = clamp(vel * 0.085, -18, 18);
+
+    // Add a tiny “tilt” coupling so vertical movement feels alive, but subtle.
+    const targetNebulaY = clamp((rotLat - DEFAULT_TILT) * 0.08, -6, 6);
+    const targetStarsY = clamp((rotLat - DEFAULT_TILT) * 0.12, -9, 9);
+
+    // Smooth to target so it feels “inertial”
+    const SMOOTH = 0.14;
+
+    setBgNebula((p) => ({
+      x: p.x + (targetNebulaX - p.x) * SMOOTH,
+      y: p.y + (targetNebulaY - p.y) * SMOOTH,
+    }));
+
+    setBgStars((p) => ({
+      x: p.x + (targetStarsX - p.x) * SMOOTH,
+      y: p.y + (targetStarsY - p.y) * SMOOTH,
+    }));
+  }, [rotLon, rotLat]);
 
   const visitedSet = useMemo(() => {
     const set = new Set<string>();
@@ -278,22 +297,36 @@ export function HeroGlobe({
   const routeColor = "80, 200, 255";
   const visitedBorder = "#945f10";
 
-  const viewCenterLonLat = useMemo<[number, number]>(
-    () => [-rotLon, -rotLat],
-    [rotLon, rotLat]
-  );
+  const viewCenterLonLat = useMemo<[number, number]>(() => [-rotLon, -rotLat], [rotLon, rotLat]);
 
-  // Starfield
+  // Stars (foreground stars that move with spin)
   const stars = useMemo(() => {
     const rand = mulberry32(hashString("stars"));
-    const pts: { x: number; y: number; r: number; o: number }[] = [];
-    const n = 120;
+    const pts: { x: number; y: number; r: number; o: number; tw: number }[] = [];
+    const n = 140;
 
     for (let i = 0; i < n; i++) {
       const x = rand() * size;
       const y = rand() * size;
-      const r = 0.5 + rand() * 1.4;
-      const o = 0.03 + rand() * 0.12;
+      const r = 0.5 + rand() * 1.5;
+      const o = 0.03 + rand() * 0.14;
+      const tw = rand(); // twinkle phase
+      pts.push({ x, y, r, o, tw });
+    }
+    return pts;
+  }, [size]);
+
+  // Nebula specks (faint cosmic dust that also moves, but less than stars)
+  const nebulaSpecks = useMemo(() => {
+    const rand = mulberry32(hashString("nebula"));
+    const pts: { x: number; y: number; r: number; o: number }[] = [];
+    const n = 34;
+
+    for (let i = 0; i < n; i++) {
+      const x = rand() * size;
+      const y = rand() * size;
+      const r = 18 + rand() * 42;
+      const o = 0.03 + rand() * 0.07;
       pts.push({ x, y, r, o });
     }
     return pts;
@@ -301,8 +334,7 @@ export function HeroGlobe({
 
   // City lights per visited country
   const lightsByCountry = useMemo(() => {
-    const out: Record<string, { x: number; y: number; r: number; o: number }[]> =
-      {};
+    const out: Record<string, { x: number; y: number; r: number; o: number }[]> = {};
 
     for (const f of features) {
       const name = normalizeCountryName(f?.properties?.name || "");
@@ -407,8 +439,7 @@ export function HeroGlobe({
 
       if (pts.length < 2) continue;
 
-      const d =
-        "M " + pts.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join(" L ");
+      const d = "M " + pts.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join(" L ");
 
       segs.push({ d, t });
     }
@@ -450,10 +481,7 @@ export function HeroGlobe({
       return { x, y };
     };
 
-    const applyAnchoredZoom = (
-      newZoom: number,
-      anchor: { x: number; y: number }
-    ) => {
+    const applyAnchoredZoom = (newZoom: number, anchor: { x: number; y: number }) => {
       const z1 = clamp(newZoom, ZOOM_MIN, ZOOM_MAX);
       const p0 = panRef.current;
 
@@ -465,9 +493,7 @@ export function HeroGlobe({
 
       const unpanned = { x: anchor.x - p0.x, y: anchor.y - p0.y };
 
-      const invertFn = (projection as any).invert as
-        | ((p: [number, number]) => [number, number] | null)
-        | undefined;
+      const invertFn = (projection as any).invert as ((p: [number, number]) => [number, number] | null) | undefined;
       const ll = invertFn?.([unpanned.x, unpanned.y]);
       if (!ll) {
         setZoom(z1);
@@ -503,8 +529,6 @@ export function HeroGlobe({
       if (e.touches.length === 2) {
         pinchDistRef.current = getTouchDist(e.touches[0], e.touches[1]);
         draggingRef.current = false;
-        lastMoveTRef.current = null;
-        dragVelRef.current = 0;
         return;
       }
 
@@ -514,9 +538,6 @@ export function HeroGlobe({
         dragStartYRef.current = e.touches[0].clientY;
         dragStartLonRef.current = rotLonRef.current;
         dragStartLatRef.current = rotLatRef.current;
-
-        lastMoveTRef.current = performance.now();
-        dragVelRef.current = 0;
       }
     };
 
@@ -529,10 +550,8 @@ export function HeroGlobe({
         const dd = d - pinchDistRef.current;
         pinchDistRef.current = d;
 
-        const midClientX =
-          (e.touches[0].clientX + e.touches[1].clientX) / 2;
-        const midClientY =
-          (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const midClientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midClientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
         const anchor = svgPointFromClient(midClientX, midClientY);
 
         applyAnchoredZoom(zoomRef.current + dd * 0.003, anchor);
@@ -543,91 +562,23 @@ export function HeroGlobe({
       if (e.touches.length === 1 && draggingRef.current) {
         e.preventDefault();
 
-        const now = performance.now();
-        const lastT = lastMoveTRef.current ?? now;
-        const dt = Math.max((now - lastT) / 1000, 1 / 240);
-        lastMoveTRef.current = now;
-
         const dx = e.touches[0].clientX - dragStartXRef.current;
         const dy = e.touches[0].clientY - dragStartYRef.current;
 
         const LON_SENS = 0.22;
         const LAT_SENS = 0.18;
 
-        const nextLon = (dragStartLonRef.current + dx * LON_SENS) % 360;
-        const nextLat = clamp(dragStartLatRef.current - dy * LAT_SENS, -70, 70);
-
-        // estimate velocity from incremental movement since start isn't ideal,
-        // so approximate using instantaneous pointer delta vs prior frame:
-        // we'll derive from pointer movement itself:
-        // velocity ~ (deltaLon per frame) / dt
-        // Using dx change since last frame would require storing lastX, so we do it by tracking lon changes:
-        // (good enough) compute approx vel from dx delta via cached lastX:
-        // We'll store lastX/lastLon in refs on pointer version; for touch we can approximate via dx delta by keeping lastX:
-        // easiest: store last clientX ref.
-        // We'll do that quickly:
-      }
-    };
-
-    // touch move velocity tracking (need lastX)
-    const lastTouchXRef = { current: 0 };
-    const onTouchMoveWithVel = (e: TouchEvent) => {
-      // pinch zoom
-      if (e.touches.length === 2 && pinchDistRef.current != null) {
-        e.preventDefault();
-
-        const d = getTouchDist(e.touches[0], e.touches[1]);
-        const dd = d - pinchDistRef.current;
-        pinchDistRef.current = d;
-
-        const midClientX =
-          (e.touches[0].clientX + e.touches[1].clientX) / 2;
-        const midClientY =
-          (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        const anchor = svgPointFromClient(midClientX, midClientY);
-
-        applyAnchoredZoom(zoomRef.current + dd * 0.003, anchor);
-        return;
-      }
-
-      if (e.touches.length === 1 && draggingRef.current) {
-        e.preventDefault();
-
-        const now = performance.now();
-        const lastT = lastMoveTRef.current ?? now;
-        const dt = Math.max((now - lastT) / 1000, 1 / 240);
-        lastMoveTRef.current = now;
-
-        const x = e.touches[0].clientX;
-        const y = e.touches[0].clientY;
-
-        const dx = x - dragStartXRef.current;
-        const dy = y - dragStartYRef.current;
-
-        const LON_SENS = 0.22;
-        const LAT_SENS = 0.18;
-
         setRotLon((dragStartLonRef.current + dx * LON_SENS) % 360);
         setRotLat(clamp(dragStartLatRef.current - dy * LAT_SENS, -70, 70));
-
-        const dxFrame = x - lastTouchXRef.current;
-        lastTouchXRef.current = x;
-
-        // deg/sec
-        dragVelRef.current = (dxFrame * LON_SENS) / dt;
       }
     };
 
     const onTouchEnd = () => {
       pinchDistRef.current = null;
       draggingRef.current = false;
-      lastMoveTRef.current = null;
-      dragVelRef.current = 0;
     };
 
     // Pointer (mouse) drag rotate ALWAYS
-    const lastPointerXRef = { current: 0 };
-
     const onPointerDown = (e: PointerEvent) => {
       draggingRef.current = true;
       dragStartXRef.current = e.clientX;
@@ -635,21 +586,12 @@ export function HeroGlobe({
       dragStartLonRef.current = rotLonRef.current;
       dragStartLatRef.current = rotLatRef.current;
 
-      lastMoveTRef.current = performance.now();
-      lastPointerXRef.current = e.clientX;
-      dragVelRef.current = 0;
-
       (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     };
 
     const onPointerMove = (e: PointerEvent) => {
       if (!draggingRef.current) return;
       e.preventDefault();
-
-      const now = performance.now();
-      const lastT = lastMoveTRef.current ?? now;
-      const dt = Math.max((now - lastT) / 1000, 1 / 240);
-      lastMoveTRef.current = now;
 
       const dx = e.clientX - dragStartXRef.current;
       const dy = e.clientY - dragStartYRef.current;
@@ -659,22 +601,15 @@ export function HeroGlobe({
 
       setRotLon((dragStartLonRef.current + dx * LON_SENS) % 360);
       setRotLat(clamp(dragStartLatRef.current - dy * LAT_SENS, -70, 70));
-
-      const dxFrame = e.clientX - lastPointerXRef.current;
-      lastPointerXRef.current = e.clientX;
-
-      dragVelRef.current = (dxFrame * LON_SENS) / dt; // deg/sec
     };
 
     const onPointerUp = () => {
       draggingRef.current = false;
-      lastMoveTRef.current = null;
-      dragVelRef.current = 0;
     };
 
     el.addEventListener("wheel", onWheel, { passive: false });
     el.addEventListener("touchstart", onTouchStart, { passive: false });
-    el.addEventListener("touchmove", onTouchMoveWithVel, { passive: false });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
     el.addEventListener("touchend", onTouchEnd, { passive: false });
     el.addEventListener("touchcancel", onTouchEnd, { passive: false });
 
@@ -687,7 +622,7 @@ export function HeroGlobe({
     return () => {
       el.removeEventListener("wheel", onWheel as any);
       el.removeEventListener("touchstart", onTouchStart as any);
-      el.removeEventListener("touchmove", onTouchMoveWithVel as any);
+      el.removeEventListener("touchmove", onTouchMove as any);
       el.removeEventListener("touchend", onTouchEnd as any);
       el.removeEventListener("touchcancel", onTouchEnd as any);
 
@@ -702,14 +637,6 @@ export function HeroGlobe({
   // Cursor feedback: now draggable at all times
   const cursorClass = "cursor-grab active:cursor-grabbing";
 
-  // Spin cue styling vars:
-  // - opacity rises with spinCue
-  // - dash animation gets faster with spinCue
-  const ringOpacity = 0.05 + spinCue * 0.22; // subtle base + boost
-  const ringOpacity2 = 0.02 + spinCue * 0.14;
-  const ringDur = clamp(3.2 - spinCue * 2.3, 0.75, 3.2); // seconds
-  const ringDur2 = clamp(4.0 - spinCue * 2.6, 0.95, 4.0);
-
   return (
     <div className="mt-0">
       <div
@@ -718,27 +645,39 @@ export function HeroGlobe({
           "relative w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] md:w-[320px] md:h-[320px] mx-auto select-none",
           cursorClass,
         ].join(" ")}
-        style={
-          {
-            touchAction: "none",
-            // css vars for dynamic animation speeds
-            ["--ringDur" as any]: `${ringDur}s`,
-            ["--ringDur2" as any]: `${ringDur2}s`,
-          } as React.CSSProperties
-        }
+        style={{ touchAction: "none" }}
         aria-label="Interactive globe. Scroll/pinch to zoom, drag to rotate."
         title="Scroll/pinch to zoom • Drag to rotate"
       >
-        <svg
-          viewBox={`0 0 ${size} ${size}`}
-          className="h-full w-full block"
-          style={{ overflow: "hidden" }}
-        >
+        <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full block" style={{ overflow: "hidden" }}>
           <defs>
+            {/* === NEW: Static dark halo behind planet (bigger than planet) === */}
+            <radialGradient id="bgHalo" cx="50%" cy="45%" r="70%">
+              <stop offset="0%" stopColor="rgba(0,0,0,0.78)" />
+              <stop offset="45%" stopColor="rgba(0,0,0,0.55)" />
+              <stop offset="78%" stopColor="rgba(0,0,0,0.25)" />
+              <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+            </radialGradient>
+
+            {/* === NEW: Cosmic nebula gradient (will parallax slightly) === */}
+            <radialGradient id="nebulaA" cx="32%" cy="32%" r="65%">
+              <stop offset="0%" stopColor="rgba(130, 90, 255, 0.16)" />
+              <stop offset="38%" stopColor="rgba(80, 200, 255, 0.10)" />
+              <stop offset="70%" stopColor="rgba(255, 120, 200, 0.06)" />
+              <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+            </radialGradient>
+
+            <radialGradient id="nebulaB" cx="70%" cy="58%" r="70%">
+              <stop offset="0%" stopColor="rgba(80, 200, 255, 0.12)" />
+              <stop offset="42%" stopColor="rgba(245, 222, 136, 0.08)" />
+              <stop offset="78%" stopColor="rgba(120, 90, 255, 0.06)" />
+              <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+            </radialGradient>
+
             {/* Ocean shading */}
             <radialGradient id="oceanShade" cx="28%" cy="26%" r="78%">
-              <stop offset="0%" stopColor={oceanB} stopOpacity="1" />
-              <stop offset="58%" stopColor={oceanA} stopOpacity="1" />
+              <stop offset="0%" stopColor="#0b1a33" stopOpacity="1" />
+              <stop offset="58%" stopColor="#050b15" stopOpacity="1" />
               <stop offset="100%" stopColor="#02040a" stopOpacity="1" />
             </radialGradient>
 
@@ -763,28 +702,10 @@ export function HeroGlobe({
               <stop offset="70%" stopColor="rgba(255,255,255,0)" />
             </radialGradient>
 
-            {/* Clip to the fixed visible sphere */}
+            {/* ✅ Clip to the fixed visible sphere */}
             <clipPath id="sphereClip">
               <circle cx={center} cy={center} r={baseRadius} />
             </clipPath>
-
-            {/* Spin ring gradient */}
-            <linearGradient id="spinRingGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor={`rgba(${routeColor},0)`} />
-              <stop offset="18%" stopColor={`rgba(${routeColor},0.55)`} />
-              <stop offset="50%" stopColor={`rgba(${routeColor},0.10)`} />
-              <stop offset="82%" stopColor={`rgba(${routeColor},0.55)`} />
-              <stop offset="100%" stopColor={`rgba(${routeColor},0)`} />
-            </linearGradient>
-
-            {/* Spin ring blur */}
-            <filter id="spinRingGlow" x="-80%" y="-80%" width="260%" height="260%">
-              <feGaussianBlur stdDeviation="1.35" result="b" />
-              <feMerge>
-                <feMergeNode in="b" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
 
             {/* Gold glow (visited countries) */}
             <filter id="goldGlow" x="-60%" y="-60%" width="220%" height="220%">
@@ -842,85 +763,52 @@ export function HeroGlobe({
 
             {/* Soft outer shadow */}
             <filter id="sphereShadow" x="-25%" y="-25%" width="150%" height="150%">
-              <feDropShadow
-                dx="0"
-                dy="6"
-                stdDeviation="8"
-                floodColor="#000"
-                floodOpacity="0.10"
-              />
+              <feDropShadow dx="0" dy="6" stdDeviation="8" floodColor="#000" floodOpacity="0.10" />
             </filter>
           </defs>
 
-          {/* STARFIELD (stays fixed behind) */}
-          <g opacity={0.75}>
-            {stars.map((s, i) => (
+          {/* === 1) Static halo gradient behind planet (does NOT move) === */}
+          <circle cx={center} cy={center} r={baseRadius * 1.85} fill="url(#bgHalo)" />
+
+          {/* === 2) Cosmic background layer (parallax a bit, stays behind stars) === */}
+          <g transform={`translate(${bgNebula.x.toFixed(2)} ${bgNebula.y.toFixed(2)})`} opacity={0.9}>
+            <rect x={0} y={0} width={size} height={size} fill="url(#nebulaA)" />
+            <rect x={0} y={0} width={size} height={size} fill="url(#nebulaB)" />
+
+            {/* soft nebula “dust” blobs */}
+            {nebulaSpecks.map((p, i) => (
+              <circle key={`neb-${i}`} cx={p.x} cy={p.y} r={p.r} fill="rgba(120, 90, 255, 1)" opacity={p.o} />
+            ))}
+            {nebulaSpecks.map((p, i) => (
               <circle
-                key={i}
-                cx={s.x}
-                cy={s.y}
-                r={s.r}
-                fill="#ffffff"
-                opacity={s.o}
+                key={`neb2-${i}`}
+                cx={(p.x + 38) % size}
+                cy={(p.y + 22) % size}
+                r={p.r * 0.72}
+                fill="rgba(80, 200, 255, 1)"
+                opacity={p.o * 0.9}
               />
             ))}
           </g>
 
+          {/* === 3) Stars in FRONT of nebula, moving more with spin direction === */}
+          <g
+            transform={`translate(${bgStars.x.toFixed(2)} ${bgStars.y.toFixed(2)})`}
+            opacity={0.85}
+            className="starfield"
+          >
+            {stars.map((s, i) => (
+              <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#ffffff" opacity={s.o} className="twinkle" />
+            ))}
+          </g>
+
           {/* Shadow OUTSIDE the clip so it looks natural */}
-          <circle
-            cx={center}
-            cy={center}
-            r={baseRadius}
-            fill="transparent"
-            filter="url(#sphereShadow)"
-          />
-
-          {/* ✅ Speed-based spin cue ring (outside planet, inside SVG) */}
-          <g
-            className="spin-cue"
-            filter="url(#spinRingGlow)"
-            style={{ opacity: ringOpacity }}
-          >
-            <circle
-              cx={center}
-              cy={center}
-              r={baseRadius + 3.5}
-              fill="none"
-              stroke="url(#spinRingGrad)"
-              strokeWidth={2.2}
-              strokeLinecap="round"
-              strokeDasharray="14 28"
-              className="spin-ring"
-            />
-          </g>
-
-          <g
-            className="spin-cue"
-            filter="url(#spinRingGlow)"
-            style={{ opacity: ringOpacity2 }}
-          >
-            <circle
-              cx={center}
-              cy={center}
-              r={baseRadius + 7}
-              fill="none"
-              stroke={`rgba(${routeColor},0.55)`}
-              strokeWidth={1.1}
-              strokeLinecap="round"
-              strokeDasharray="4 26"
-              className="spin-ring-2"
-            />
-          </g>
+          <circle cx={center} cy={center} r={baseRadius} fill="transparent" filter="url(#sphereShadow)" />
 
           {/* ✅ Everything that could ever “spill” is inside the clip */}
           <g clipPath="url(#sphereClip)">
             {/* Ocean fill */}
-            <circle
-              cx={center}
-              cy={center}
-              r={baseRadius}
-              fill="url(#oceanShade)"
-            />
+            <circle cx={center} cy={center} r={baseRadius} fill="url(#oceanShade)" />
 
             {/* Atmo/spec */}
             <circle cx={center} cy={center} r={baseRadius} fill="url(#atmo)" />
@@ -969,20 +857,8 @@ export function HeroGlobe({
 
                     return (
                       <g key={`node-${i}`}>
-                        <circle
-                          cx={n.x}
-                          cy={n.y}
-                          r={r * 2.2}
-                          fill={`rgba(${routeColor},${
-                            0.1 + 0.05 * n.t
-                          })`}
-                        />
-                        <circle
-                          cx={n.x}
-                          cy={n.y}
-                          r={r}
-                          fill={`rgba(${routeColor},${a})`}
-                        />
+                        <circle cx={n.x} cy={n.y} r={r * 2.2} fill={`rgba(${routeColor},${0.10 + 0.05 * n.t})`} />
+                        <circle cx={n.x} cy={n.y} r={r} fill={`rgba(${routeColor},${a})`} />
                         <circle
                           cx={n.x - 0.6}
                           cy={n.y - 0.6}
@@ -1016,20 +892,14 @@ export function HeroGlobe({
                     ) : null}
 
                     {isVisited ? (
-                      <path
-                        d={d}
-                        fill={glowGold}
-                        opacity={0.55}
-                        className="visited-pulse"
-                        filter="url(#goldGlow)"
-                      />
+                      <path d={d} fill={glowGold} opacity={0.55} className="visited-pulse" filter="url(#goldGlow)" />
                     ) : null}
 
                     <path
                       d={d}
-                      fill={isVisited ? glowGold : landBase}
+                      fill={isVisited ? glowGold : "rgba(255,255,255,0.04)"}
                       opacity={isVisited ? 0.82 : 1}
-                      stroke={isVisited ? visitedBorder : border}
+                      stroke={isVisited ? "#945f10" : "rgba(170, 195, 230, 0.14)"}
                       strokeWidth={isVisited ? 1.05 : 0.7}
                       filter={isVisited ? "url(#goldBorderGlow)" : undefined}
                       className={isVisited ? "visited-border-pulse" : undefined}
@@ -1037,20 +907,9 @@ export function HeroGlobe({
                     />
 
                     {isVisited && lightsByCountry[name]?.length ? (
-                      <g
-                        clipPath={`url(#${clipId})`}
-                        filter="url(#lightGlow)"
-                        className="visited-pulse"
-                      >
+                      <g clipPath={`url(#${clipId})`} filter="url(#lightGlow)" className="visited-pulse">
                         {lightsByCountry[name].map((p, i) => (
-                          <circle
-                            key={i}
-                            cx={p.x}
-                            cy={p.y}
-                            r={p.r}
-                            fill="#ffc83d"
-                            opacity={p.o}
-                          />
+                          <circle key={i} cx={p.x} cy={p.y} r={p.r} fill="#ffc83d" opacity={p.o} />
                         ))}
                       </g>
                     ) : null}
@@ -1060,10 +919,7 @@ export function HeroGlobe({
 
               {/* Current pin */}
               {currentPoint ? (
-                <g
-                  className="current-pin"
-                  transform={`translate(${currentPoint.x}, ${currentPoint.y})`}
-                >
+                <g className="current-pin" transform={`translate(${currentPoint.x}, ${currentPoint.y})`}>
                   <circle
                     r="6.25"
                     fill="transparent"
@@ -1073,27 +929,44 @@ export function HeroGlobe({
                     className="pin-ring"
                   />
                   <circle r="2.625" fill="#ff3b3b" filter="url(#pinGlow)" />
-                  <circle
-                    cx="-0.75"
-                    cy="-0.75"
-                    r="0.75"
-                    fill="rgba(255,255,255,0.78)"
-                  />
+                  <circle cx="-0.75" cy="-0.75" r="0.75" fill="rgba(255,255,255,0.78)" />
                 </g>
               ) : null}
             </g>
 
             {/* Terminator on top, clipped */}
-            <circle
-              cx={center}
-              cy={center}
-              r={baseRadius}
-              fill="url(#terminator)"
-            />
+            <circle cx={center} cy={center} r={baseRadius} fill="url(#terminator)" />
           </g>
         </svg>
 
         <style jsx>{`
+          /* super subtle twinkle */
+          .twinkle {
+            animation: tw 5.5s ease-in-out infinite;
+          }
+          @keyframes tw {
+            0% {
+              opacity: 0.35;
+            }
+            50% {
+              opacity: 0.85;
+            }
+            100% {
+              opacity: 0.35;
+            }
+          }
+
+          /* keep twinkles desynced */
+          .starfield circle:nth-child(3n) {
+            animation-duration: 6.2s;
+          }
+          .starfield circle:nth-child(4n) {
+            animation-duration: 7.1s;
+          }
+          .starfield circle:nth-child(5n) {
+            animation-duration: 4.8s;
+          }
+
           .visited-pulse {
             animation: pulseGlow 4.6s ease-in-out infinite;
             transform-origin: 50% 50%;
@@ -1176,29 +1049,8 @@ export function HeroGlobe({
           }
 
           ${Array.from({ length: 24 })
-            .map(
-              (_, i) =>
-                `.travel-pulse-${i} { animation-delay: -${i * 0.18}s; }`
-            )
+            .map((_, i) => `.travel-pulse-${i} { animation-delay: -${i * 0.18}s; }`)
             .join("\n")}
-
-          /* ✅ Spin cue: speed lines around the planet */
-          .spin-ring {
-            animation: spinDash var(--ringDur, 2.4s) linear infinite;
-          }
-          .spin-ring-2 {
-            animation: spinDash2 var(--ringDur2, 3.2s) linear infinite;
-          }
-          @keyframes spinDash {
-            to {
-              stroke-dashoffset: -220;
-            }
-          }
-          @keyframes spinDash2 {
-            to {
-              stroke-dashoffset: -160;
-            }
-          }
 
           @media (prefers-reduced-motion: reduce) {
             .visited-pulse,
@@ -1206,8 +1058,7 @@ export function HeroGlobe({
             .current-pin,
             .pin-ring,
             .travel-pulse,
-            .spin-ring,
-            .spin-ring-2 {
+            .twinkle {
               animation: none;
             }
           }
