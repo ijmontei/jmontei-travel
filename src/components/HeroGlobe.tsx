@@ -135,14 +135,9 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const zoomRef = useRef(1);
-  const panRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const panRef = useRef({ x: 0, y: 0 });
   useEffect(() => void (zoomRef.current = zoom), [zoom]);
   useEffect(() => void (panRef.current = pan), [pan]);
-
-  // ---- Cosmic parallax offsets (stars / nebula move with spin) ----
-  const [bgShift, setBgShift] = useState({ x: 0, y: 0 });
-  const bgShiftRef = useRef({ x: 0, y: 0 });
-  useEffect(() => void (bgShiftRef.current = bgShift), [bgShift]);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -182,55 +177,44 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
   // Auto spin with smooth ramp back after user interaction + tilt returns to default
   useEffect(() => {
-    const SPEED = 25; // deg/sec
-    const RAMP = 10; // higher = snappier ramp back
-    const ZOOM_STOP_AT = 1.02; // stop auto-spin when zoomed in past this
+  const SPEED = 25; // deg/sec
+  const RAMP = 10; // higher = snappier ramp back
+  const ZOOM_STOP_AT = 1.02; // stop auto-spin when zoomed in past this
 
-    // background parallax intensity
-    const STAR_DRIFT_PER_DEG = 0.22; // px per degree (wrapped)
-    const MAX_SHIFT = 260; // hard cap so it doesn't go crazy
+  let raf = 0;
+  let last = performance.now();
+  let spinSpeed = SPEED;
 
-    let raf = 0;
-    let last = performance.now();
-    let spinSpeed = SPEED;
+  const tick = (now: number) => {
+    const dt = (now - last) / 1000;
+    last = now;
 
-    const tick = (now: number) => {
-      const dt = (now - last) / 1000;
-      last = now;
+    const zoomedIn = zoomRef.current > ZOOM_STOP_AT;
+    const interacting = draggingRef.current;
 
-      const zoomedIn = zoomRef.current > ZOOM_STOP_AT;
-      const interacting = draggingRef.current;
+    // ✅ If zoomed in OR dragging, pause auto-spin
+    const target = zoomedIn || interacting ? 0 : SPEED;
 
-      const target = zoomedIn || interacting ? 0 : SPEED;
+    // smooth ramp to target speed
+    spinSpeed += (target - spinSpeed) * (1 - Math.exp(-RAMP * dt));
 
-      // smooth ramp to target speed
-      spinSpeed += (target - spinSpeed) * (1 - Math.exp(-RAMP * dt));
+    if (Math.abs(spinSpeed) > 0.001) {
+      setRotLon((r) => (r + spinSpeed * dt) % 360);
+    }
 
-      if (Math.abs(spinSpeed) > 0.001) {
-        setRotLon((r) => (r + spinSpeed * dt) % 360);
-
-        // background moves WITH the rotation direction
-        // (small drift, wraps so it can move “forever”)
-        const dx = spinSpeed * dt * STAR_DRIFT_PER_DEG;
-        setBgShift((s) => {
-          const nx = clamp(s.x + dx, -MAX_SHIFT, MAX_SHIFT);
-          // tiny vertical drift based on tilt to make it feel alive
-          const ny = clamp(s.y + (rotLatRef.current / 90) * dx * 0.15, -MAX_SHIFT, MAX_SHIFT);
-          return { x: nx, y: ny };
-        });
-      }
-
-      if (!interacting) {
-        const k = 6;
-        setRotLat((lat) => lat + (DEFAULT_TILT - lat) * (1 - Math.exp(-k * dt)));
-      }
-
-      raf = requestAnimationFrame(tick);
-    };
+    // ✅ Only “return tilt to default” when user isn't actively dragging
+    if (!interacting) {
+      const k = 6;
+      setRotLat((lat) => lat + (DEFAULT_TILT - lat) * (1 - Math.exp(-k * dt)));
+    }
 
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
+  };
+
+  raf = requestAnimationFrame(tick);
+  return () => cancelAnimationFrame(raf);
+}, []);
+
 
   const visitedSet = useMemo(() => {
     const set = new Set<string>();
@@ -243,7 +227,10 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
   // Projection is centered; zoom affects projection scale only.
   const projection = useMemo(() => {
-    return geoOrthographic().scale(baseRadius * zoom).translate([center, center]).clipAngle(90);
+    return geoOrthographic()
+      .scale(baseRadius * zoom)
+      .translate([center, center])
+      .clipAngle(90);
   }, [baseRadius, zoom, center]);
 
   // apply rotation for this render
@@ -251,7 +238,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
   const pathGen = geoPath(projection);
 
-  // Palette (planet)
+  // Palette
   const oceanA = "#050b15";
   const oceanB = "#0b1a33";
   const landBase = "rgba(255,255,255,0.04)";
@@ -263,21 +250,20 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
   const viewCenterLonLat = useMemo<[number, number]>(() => [-rotLon, -rotLat], [rotLon, rotLat]);
 
-  // Stars (generated in a larger field so drift never “runs out”)
+  // Starfield
   const stars = useMemo(() => {
-    const rand = mulberry32(hashString("stars-v2"));
+    const rand = mulberry32(hashString("stars"));
     const pts: { x: number; y: number; r: number; o: number }[] = [];
-    const field = size * 2.4; // bigger than viewBox
-    const n = 280;
+    const n = 120;
 
     for (let i = 0; i < n; i++) {
-      const x = rand() * field - field / 2; // centered around (0,0)
-      const y = rand() * field - field / 2;
-      const r = 0.45 + rand() * 1.6;
-      const o = 0.02 + rand() * 0.16;
+      const x = rand() * size;
+      const y = rand() * size;
+      const r = 0.5 + rand() * 1.4;
+      const o = 0.03 + rand() * 0.12;
       pts.push({ x, y, r, o });
     }
-    return { pts, field };
+    return pts;
   }, [size]);
 
   // City lights per visited country
@@ -292,6 +278,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
       const pts: { x: number; y: number; r: number; o: number }[] = [];
       const n = 46;
 
+      // generate in a box around the sphere; clipping will keep it inside
       for (let i = 0; i < n; i++) {
         const x = center - baseRadius + rand() * (baseRadius * 2);
         const y = center - baseRadius + rand() * (baseRadius * 2);
@@ -315,7 +302,10 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
   const currentPoint = useMemo(() => {
     if (!currentName || !features.length) return null;
 
-    const match = features.find((f) => normalizeCountryName(f?.properties?.name || "") === currentName);
+    const match = features.find((f) => {
+      const name = normalizeCountryName(f?.properties?.name || "");
+      return name === currentName;
+    });
     if (!match) return null;
 
     const lonLat = centroidOfFeature(match);
@@ -333,13 +323,18 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
   // Route lon/lat points
   const routeLonLat = useMemo(() => {
     if (!routeCountries?.length || !features.length) return [];
+
     const out: [number, number][] = [];
 
     for (const c of routeCountries) {
       const n0 = normalizeCountryName(c);
       const n = COUNTRY_ALIASES[n0] ?? n0;
 
-      const match = features.find((f) => normalizeCountryName(f?.properties?.name || "") === n);
+      const match = features.find((f) => {
+        const name = normalizeCountryName(f?.properties?.name || "");
+        return name === n;
+      });
+
       if (!match) continue;
 
       const lonLat = centroidOfFeature(match);
@@ -379,6 +374,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
       if (pts.length < 2) continue;
 
       const d = "M " + pts.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join(" L ");
+
       segs.push({ d, t });
     }
 
@@ -480,6 +476,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
     };
 
     const onTouchMove = (e: TouchEvent) => {
+      // pinch zoom
       if (e.touches.length === 2 && pinchDistRef.current != null) {
         e.preventDefault();
 
@@ -495,6 +492,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
         return;
       }
 
+      // one-finger rotate (always)
       if (e.touches.length === 1 && draggingRef.current) {
         e.preventDefault();
 
@@ -506,9 +504,6 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
         setRotLon((dragStartLonRef.current + dx * LON_SENS) % 360);
         setRotLat(clamp(dragStartLatRef.current - dy * LAT_SENS, -70, 70));
-
-        // background drift during drag (feels connected)
-        setBgShift((s) => ({ x: clamp(s.x + dx * 0.12, -260, 260), y: clamp(s.y + dy * 0.06, -260, 260) }));
       }
     };
 
@@ -517,12 +512,14 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
       draggingRef.current = false;
     };
 
+    // Pointer (mouse) drag rotate ALWAYS
     const onPointerDown = (e: PointerEvent) => {
       draggingRef.current = true;
       dragStartXRef.current = e.clientX;
       dragStartYRef.current = e.clientY;
       dragStartLonRef.current = rotLonRef.current;
       dragStartLatRef.current = rotLatRef.current;
+
       (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     };
 
@@ -538,9 +535,6 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
       setRotLon((dragStartLonRef.current + dx * LON_SENS) % 360);
       setRotLat(clamp(dragStartLatRef.current - dy * LAT_SENS, -70, 70));
-
-      // background drift during drag
-      setBgShift((s) => ({ x: clamp(s.x + dx * 0.12, -260, 260), y: clamp(s.y + dy * 0.06, -260, 260) }));
     };
 
     const onPointerUp = () => {
@@ -574,399 +568,361 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
     };
   }, [baseRadius, center, projection, size]);
 
+  // Cursor feedback: now draggable at all times
   const cursorClass = "cursor-grab active:cursor-grabbing";
-
-  // --- Aura sizing: not huge, close to the globe, fades out ---
-  const auraR = baseRadius * 1.35; // slightly larger than globe (tight)
-  const auraBlur = 18;
-
-  // Star drift wraps so it can move forever
-  const wrap = (v: number, m: number) => {
-    const x = ((v % m) + m) % m;
-    return x;
-  };
-  const starTX = wrap(bgShift.x, stars.field);
-  const starTY = wrap(bgShift.y, stars.field);
 
   return (
     <div className="mt-0">
-      {/* extra vertical buffer so glow doesn’t touch headline/cards */}
-      <div className="py-10 sm:py-12 md:py-14">
-        <div
-          ref={containerRef}
-          className={[
-            "relative w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] md:w-[320px] md:h-[320px] mx-auto select-none",
-            cursorClass,
-          ].join(" ")}
-          style={{ touchAction: "none" }}
-          aria-label="Interactive globe. Scroll/pinch to zoom, drag to rotate."
-          title="Scroll/pinch to zoom • Drag to rotate"
-        >
-          <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full block" style={{ overflow: "visible" }}>
-            <defs>
-              {/* Ocean shading */}
-              <radialGradient id="oceanShade" cx="28%" cy="26%" r="78%">
-                <stop offset="0%" stopColor={oceanB} stopOpacity="1" />
-                <stop offset="58%" stopColor={oceanA} stopOpacity="1" />
-                <stop offset="100%" stopColor="#02040a" stopOpacity="1" />
-              </radialGradient>
+      <div
+        ref={containerRef}
+        className={[
+          "relative w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] md:w-[320px] md:h-[320px] mx-auto select-none",
+          cursorClass,
+        ].join(" ")}
+        style={{ touchAction: "none" }}
+        aria-label="Interactive globe. Scroll/pinch to zoom, drag to rotate."
+        title="Scroll/pinch to zoom • Drag to rotate"
+      >
+        <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full block" style={{ overflow: "hidden" }}>
+          <defs>
+            {/* Ocean shading */}
+            <radialGradient id="oceanShade" cx="28%" cy="26%" r="78%">
+              <stop offset="0%" stopColor={oceanB} stopOpacity="1" />
+              <stop offset="58%" stopColor={oceanA} stopOpacity="1" />
+              <stop offset="100%" stopColor="#02040a" stopOpacity="1" />
+            </radialGradient>
 
-              {/* Terminator shading */}
-              <radialGradient id="terminator" cx="36%" cy="40%" r="80%">
-                <stop offset="0%" stopColor="rgba(0,0,0,0)" />
-                <stop offset="55%" stopColor="rgba(0,0,0,0.10)" />
-                <stop offset="100%" stopColor="rgba(0,0,0,0.52)" />
-              </radialGradient>
+            {/* Terminator shading */}
+            <radialGradient id="terminator" cx="36%" cy="40%" r="80%">
+              <stop offset="0%" stopColor="rgba(0,0,0,0)" />
+              <stop offset="55%" stopColor="rgba(0,0,0,0.10)" />
+              <stop offset="100%" stopColor="rgba(0,0,0,0.52)" />
+            </radialGradient>
 
-              {/* Atmosphere glow (brighter rim like your reference) */}
-              <radialGradient id="atmo" cx="35%" cy="30%" r="75%">
-                <stop offset="0%" stopColor="rgba(120,190,255,0.10)" />
-                <stop offset="55%" stopColor="rgba(120,190,255,0.05)" />
-                <stop offset="100%" stopColor="rgba(120,190,255,0)" />
-              </radialGradient>
+            {/* Atmosphere glow */}
+            <radialGradient id="atmo" cx="35%" cy="30%" r="75%">
+              <stop offset="0%" stopColor="rgba(143,211,255,0.08)" />
+              <stop offset="60%" stopColor="rgba(143,211,255,0.03)" />
+              <stop offset="100%" stopColor="rgba(143,211,255,0)" />
+            </radialGradient>
 
-              {/* Specular highlight */}
-              <radialGradient id="spec" cx="30%" cy="28%" r="55%">
-                <stop offset="0%" stopColor="rgba(255,255,255,0.14)" />
-                <stop offset="40%" stopColor="rgba(255,255,255,0.05)" />
-                <stop offset="70%" stopColor="rgba(255,255,255,0)" />
-              </radialGradient>
+            {/* Specular highlight */}
+            <radialGradient id="spec" cx="30%" cy="28%" r="55%">
+              <stop offset="0%" stopColor="rgba(255,255,255,0.14)" />
+              <stop offset="40%" stopColor="rgba(255,255,255,0.05)" />
+              <stop offset="70%" stopColor="rgba(255,255,255,0)" />
+            </radialGradient>
 
-              {/* ---- NEW: Tight void-black aura behind globe (circular, fades out) ---- */}
-              <radialGradient id="spaceAura" cx="50%" cy="50%" r="50%">
-                {/* near globe edge: very dark */}
-                <stop offset="0%" stopColor="rgba(0,0,0,0.00)" />
-                <stop offset="28%" stopColor="rgba(0,0,0,0.88)" />
-                <stop offset="55%" stopColor="rgba(10,18,35,0.55)" />
-                <stop offset="80%" stopColor="rgba(70,120,190,0.12)" />
-                <stop offset="100%" stopColor="rgba(0,0,0,0.00)" />
-              </radialGradient>
+            {/* ✅ Clip to the fixed visible sphere */}
+            <clipPath id="sphereClip">
+              <circle cx={center} cy={center} r={baseRadius} />
+            </clipPath>
 
-              {/* subtle nebula tint (moves with stars) */}
-              <radialGradient id="nebulaTint" cx="35%" cy="40%" r="70%">
-                <stop offset="0%" stopColor="rgba(110,170,255,0.16)" />
-                <stop offset="45%" stopColor="rgba(90,130,220,0.08)" />
-                <stop offset="70%" stopColor="rgba(40,70,140,0.05)" />
-                <stop offset="100%" stopColor="rgba(0,0,0,0)" />
-              </radialGradient>
+            {/* Gold glow (visited countries) */}
+            <filter id="goldGlow" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation="2.6" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
 
-              {/* Clip to the fixed visible sphere */}
-              <clipPath id="sphereClip">
-                <circle cx={center} cy={center} r={baseRadius} />
-              </clipPath>
+            {/* Dark gold outline glow (visited borders) */}
+            <filter id="goldBorderGlow" x="-70%" y="-70%" width="240%" height="240%">
+              <feGaussianBlur stdDeviation="1.25" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
 
-              {/* Gold glow (visited countries) */}
-              <filter id="goldGlow" x="-60%" y="-60%" width="220%" height="220%">
-                <feGaussianBlur stdDeviation="2.6" result="blur" />
-                <feMerge>
-                  <feMergeNode in="blur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
+            {/* Light glow for speckles */}
+            <filter id="lightGlow" x="-80%" y="-80%" width="260%" height="260%">
+              <feGaussianBlur stdDeviation="1.9" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
 
-              <filter id="goldBorderGlow" x="-70%" y="-70%" width="240%" height="240%">
-                <feGaussianBlur stdDeviation="1.25" result="b" />
-                <feMerge>
-                  <feMergeNode in="b" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
+            {/* Pin glow */}
+            <filter id="pinGlow" x="-80%" y="-80%" width="260%" height="260%">
+              <feGaussianBlur stdDeviation="2.2" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
 
-              <filter id="lightGlow" x="-80%" y="-80%" width="260%" height="260%">
-                <feGaussianBlur stdDeviation="1.9" result="b" />
-                <feMerge>
-                  <feMergeNode in="b" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
+            {/* Route glow */}
+            <filter id="routeGlow" x="-80%" y="-80%" width="260%" height="260%">
+              <feGaussianBlur stdDeviation="1.4" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
 
-              <filter id="pinGlow" x="-80%" y="-80%" width="260%" height="260%">
-                <feGaussianBlur stdDeviation="2.2" result="b" />
-                <feMerge>
-                  <feMergeNode in="b" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
+            {/* Node glow (neon) */}
+            <filter id="nodeGlow" x="-120%" y="-120%" width="340%" height="340%">
+              <feGaussianBlur stdDeviation="1.3" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
 
-              <filter id="routeGlow" x="-80%" y="-80%" width="260%" height="260%">
-                <feGaussianBlur stdDeviation="1.4" result="b" />
-                <feMerge>
-                  <feMergeNode in="b" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
+            {/* Soft outer shadow */}
+            <filter id="sphereShadow" x="-25%" y="-25%" width="150%" height="150%">
+              <feDropShadow dx="0" dy="6" stdDeviation="8" floodColor="#000" floodOpacity="0.10" />
+            </filter>
+          </defs>
 
-              <filter id="nodeGlow" x="-120%" y="-120%" width="340%" height="340%">
-                <feGaussianBlur stdDeviation="1.3" result="b" />
-                <feMerge>
-                  <feMergeNode in="b" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
+          {/* STARFIELD (stays fixed behind) */}
+          <g opacity={0.}>
+            {stars.map((s, i) => (
+              <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#ffffff" opacity={s.o} />
+            ))}
+          </g>
 
-              {/* Soft outer shadow */}
-              <filter id="sphereShadow" x="-25%" y="-25%" width="150%" height="150%">
-                <feDropShadow dx="0" dy="7" stdDeviation="10" floodColor="#000" floodOpacity="0.18" />
-              </filter>
+          {/* Shadow OUTSIDE the clip so it looks natural */}
+          <circle cx={center} cy={center} r={baseRadius} fill="transparent" filter="url(#sphereShadow)" />
 
-              {/* Aura blur */}
-              <filter id="auraBlur" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur stdDeviation={auraBlur} />
-              </filter>
-            </defs>
+          {/* ✅ Everything that could ever “spill” is inside the clip */}
+          <g clipPath="url(#sphereClip)">
+            {/* Ocean fill */}
+            <circle cx={center} cy={center} r={baseRadius} fill="url(#oceanShade)" />
 
-            {/* --- AURA (stable, behind everything) --- */}
-            <g opacity={0.95}>
-              <circle
-                cx={center}
-                cy={center}
-                r={auraR}
-                fill="url(#spaceAura)"
-                filter="url(#auraBlur)"
-              />
-            </g>
+            {/* Atmo/spec */}
+            <circle cx={center} cy={center} r={baseRadius} fill="url(#atmo)" />
+            <circle cx={center} cy={center} r={baseRadius} fill="url(#spec)" />
 
-            {/* --- Moving cosmic layer (subtle tint that drifts with spin) --- */}
-            <g transform={`translate(${starTX * 0.35 - 40} ${starTY * 0.22 - 30})`} opacity={0.9}>
-              <circle cx={center} cy={center} r={auraR * 0.95} fill="url(#nebulaTint)" />
-            </g>
+            {/* ✅ Pan the map layer ONLY (zoom already applied via projection.scale) */}
+            <g transform={`translate(${pan.x} ${pan.y})`}>
+              {/* ROUTE */}
+              {routeSegments.length ? (
+                <g filter="url(#routeGlow)">
+                  {routeSegments.map(({ d }, i) => (
+                    <path
+                      key={`route-${i}`}
+                      d={d}
+                      fill="none"
+                      stroke={`rgba(${routeColor},0)`}
+                      strokeWidth={0}
+                      strokeLinecap="round"
+                    />
+                  ))}
 
-            {/* --- Stars (in front of aura, drift with spin) --- */}
-            <g transform={`translate(${center + (starTX - stars.field / 2)} ${center + (starTY - stars.field / 2)})`} opacity={0.78}>
-              {stars.pts.map((s, i) => (
-                <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#ffffff" opacity={s.o} />
-              ))}
-            </g>
-
-            {/* Shadow */}
-            <circle cx={center} cy={center} r={baseRadius} fill="transparent" filter="url(#sphereShadow)" />
-
-            {/* Planet */}
-            <g clipPath="url(#sphereClip)">
-              <circle cx={center} cy={center} r={baseRadius} fill="url(#oceanShade)" />
-              <circle cx={center} cy={center} r={baseRadius} fill="url(#atmo)" />
-              <circle cx={center} cy={center} r={baseRadius} fill="url(#spec)" />
-
-              <g transform={`translate(${pan.x} ${pan.y})`}>
-                {/* ROUTE */}
-                {routeSegments.length ? (
-                  <g filter="url(#routeGlow)">
-                    {routeSegments.map(({ d }, i) => (
+                  {routeSegments.map(({ d, t }, i) => {
+                    if (t <= 0.35) return null;
+                    const pulseAlpha = 0.04 + 0.06 * t;
+                    return (
                       <path
-                        key={`route-${i}`}
+                        key={`pulse-${i}`}
                         d={d}
                         fill="none"
-                        stroke={`rgba(${routeColor},0)`}
-                        strokeWidth={0}
+                        stroke={`rgba(${routeColor},${pulseAlpha})`}
+                        strokeWidth={1.25}
                         strokeLinecap="round"
+                        className={`travel-pulse travel-pulse-${i}`}
                       />
-                    ))}
+                    );
+                  })}
+                </g>
+              ) : null}
 
-                    {routeSegments.map(({ d, t }, i) => {
-                      if (t <= 0.35) return null;
-                      const pulseAlpha = 0.04 + 0.06 * t;
-                      return (
-                        <path
-                          key={`pulse-${i}`}
-                          d={d}
-                          fill="none"
-                          stroke={`rgba(${routeColor},${pulseAlpha})`}
-                          strokeWidth={1.25}
-                          strokeLinecap="round"
-                          className={`travel-pulse travel-pulse-${i}`}
+              {/* Nodes */}
+              {routeNodes.length ? (
+                <g filter="url(#nodeGlow)">
+                  {routeNodes.map((n, i) => {
+                    const r = 1.3 + 0.3 * n.t;
+                    const a = 0.42 + 0.08 * n.t;
+
+                    return (
+                      <g key={`node-${i}`}>
+                        <circle
+                          cx={n.x}
+                          cy={n.y}
+                          r={r * 2.2}
+                          fill={`rgba(${routeColor},${0.10 + 0.05 * n.t})`}
                         />
-                      );
-                    })}
-                  </g>
-                ) : null}
+                        <circle cx={n.x} cy={n.y} r={r} fill={`rgba(${routeColor},${a})`} />
+                        <circle
+                          cx={n.x - 0.6}
+                          cy={n.y - 0.6}
+                          r={Math.max(0.55, r * 0.38)}
+                          fill="rgba(255,255,255,0.55)"
+                          opacity={0.55}
+                        />
+                      </g>
+                    );
+                  })}
+                </g>
+              ) : null}
 
-                {/* Nodes */}
-                {routeNodes.length ? (
-                  <g filter="url(#nodeGlow)">
-                    {routeNodes.map((n, i) => {
-                      const r = 1.3 + 0.3 * n.t;
-                      const a = 0.42 + 0.08 * n.t;
-                      return (
-                        <g key={`node-${i}`}>
-                          <circle cx={n.x} cy={n.y} r={r * 2.2} fill={`rgba(${routeColor},${0.10 + 0.05 * n.t})`} />
-                          <circle cx={n.x} cy={n.y} r={r} fill={`rgba(${routeColor},${a})`} />
-                          <circle
-                            cx={n.x - 0.6}
-                            cy={n.y - 0.6}
-                            r={Math.max(0.55, r * 0.38)}
-                            fill="rgba(255,255,255,0.55)"
-                            opacity={0.55}
-                          />
-                        </g>
-                      );
-                    })}
-                  </g>
-                ) : null}
+              {/* Countries */}
+              {features.map((f, idx) => {
+                const name = normalizeCountryName(f?.properties?.name || "");
+                const isVisited = visitedSet.has(name);
+                const d = pathGen(f) || "";
+                if (!d) return null;
 
-                {/* Countries */}
-                {features.map((f, idx) => {
-                  const name = normalizeCountryName(f?.properties?.name || "");
-                  const isVisited = visitedSet.has(name);
-                  const d = pathGen(f) || "";
-                  if (!d) return null;
+                const clipId = `clip-${idx}`;
 
-                  const clipId = `clip-${idx}`;
+                return (
+                  <g key={idx}>
+                    {isVisited ? (
+                      <defs>
+                        <clipPath id={clipId}>
+                          <path d={d} />
+                        </clipPath>
+                      </defs>
+                    ) : null}
 
-                  return (
-                    <g key={idx}>
-                      {isVisited ? (
-                        <defs>
-                          <clipPath id={clipId}>
-                            <path d={d} />
-                          </clipPath>
-                        </defs>
-                      ) : null}
+                    {isVisited ? (
+                      <path d={d} fill={glowGold} opacity={0.55} className="visited-pulse" filter="url(#goldGlow)" />
+                    ) : null}
 
-                      {isVisited ? (
-                        <path d={d} fill={glowGold} opacity={0.55} className="visited-pulse" filter="url(#goldGlow)" />
-                      ) : null}
-
-                      <path
-                        d={d}
-                        fill={isVisited ? glowGold : landBase}
-                        opacity={isVisited ? 0.82 : 1}
-                        stroke={isVisited ? visitedBorder : border}
-                        strokeWidth={isVisited ? 1.05 : 0.7}
-                        filter={isVisited ? "url(#goldBorderGlow)" : undefined}
-                        className={isVisited ? "visited-border-pulse" : undefined}
-                        vectorEffect="non-scaling-stroke"
-                      />
-
-                      {isVisited && lightsByCountry[name]?.length ? (
-                        <g clipPath={`url(#${clipId})`} filter="url(#lightGlow)" className="visited-pulse">
-                          {lightsByCountry[name].map((p, i) => (
-                            <circle key={i} cx={p.x} cy={p.y} r={p.r} fill="#ffc83d" opacity={p.o} />
-                          ))}
-                        </g>
-                      ) : null}
-                    </g>
-                  );
-                })}
-
-                {/* Current pin */}
-                {currentPoint ? (
-                  <g className="current-pin" transform={`translate(${currentPoint.x}, ${currentPoint.y})`}>
-                    <circle
-                      r="6.25"
-                      fill="transparent"
-                      stroke="rgba(255, 70, 70, 0.78)"
-                      strokeWidth="1.9"
-                      filter="url(#pinGlow)"
-                      className="pin-ring"
+                    <path
+                      d={d}
+                      fill={isVisited ? glowGold : landBase}
+                      opacity={isVisited ? 0.82 : 1}
+                      stroke={isVisited ? visitedBorder : border}
+                      strokeWidth={isVisited ? 1.05 : 0.7}
+                      filter={isVisited ? "url(#goldBorderGlow)" : undefined}
+                      className={isVisited ? "visited-border-pulse" : undefined}
+                      vectorEffect="non-scaling-stroke"
                     />
-                    <circle r="2.625" fill="#ff3b3b" filter="url(#pinGlow)" />
-                    <circle cx="-0.75" cy="-0.75" r="0.75" fill="rgba(255,255,255,0.78)" />
+
+                    {isVisited && lightsByCountry[name]?.length ? (
+                      <g clipPath={`url(#${clipId})`} filter="url(#lightGlow)" className="visited-pulse">
+                        {lightsByCountry[name].map((p, i) => (
+                          <circle key={i} cx={p.x} cy={p.y} r={p.r} fill="#ffc83d" opacity={p.o} />
+                        ))}
+                      </g>
+                    ) : null}
                   </g>
-                ) : null}
-              </g>
+                );
+              })}
 
-              {/* Terminator */}
-              <circle cx={center} cy={center} r={baseRadius} fill="url(#terminator)" />
+              {/* Current pin */}
+              {currentPoint ? (
+                <g className="current-pin" transform={`translate(${currentPoint.x}, ${currentPoint.y})`}>
+                  <circle
+                    r="6.25"
+                    fill="transparent"
+                    stroke="rgba(255, 70, 70, 0.78)"
+                    strokeWidth="1.9"
+                    filter="url(#pinGlow)"
+                    className="pin-ring"
+                  />
+                  <circle r="2.625" fill="#ff3b3b" filter="url(#pinGlow)" />
+                  <circle cx="-0.75" cy="-0.75" r="0.75" fill="rgba(255,255,255,0.78)" />
+                </g>
+              ) : null}
             </g>
-          </svg>
 
-          <style jsx>{`
-            .visited-pulse {
-              animation: pulseGlow 4.6s ease-in-out infinite;
-              transform-origin: 50% 50%;
+            {/* Terminator on top, clipped */}
+            <circle cx={center} cy={center} r={baseRadius} fill="url(#terminator)" />
+          </g>
+        </svg>
+
+        <style jsx>{`
+          .visited-pulse {
+            animation: pulseGlow 4.6s ease-in-out infinite;
+            transform-origin: 50% 50%;
+          }
+
+          .visited-border-pulse {
+            animation: borderPulse 4.6s ease-in-out infinite;
+          }
+
+          @keyframes pulseGlow {
+            0% {
+              opacity: 0.55;
             }
-
-            .visited-border-pulse {
-              animation: borderPulse 4.6s ease-in-out infinite;
+            50% {
+              opacity: 0.88;
             }
-
-            @keyframes pulseGlow {
-              0% {
-                opacity: 0.55;
-              }
-              50% {
-                opacity: 0.88;
-              }
-              100% {
-                opacity: 0.55;
-              }
+            100% {
+              opacity: 0.55;
             }
+          }
 
-            @keyframes borderPulse {
-              0% {
-                stroke-opacity: 0.55;
-              }
-              50% {
-                stroke-opacity: 0.92;
-              }
-              100% {
-                stroke-opacity: 0.55;
-              }
+          @keyframes borderPulse {
+            0% {
+              stroke-opacity: 0.55;
             }
-
-            .current-pin {
-              animation: pinFade 1.6s ease-in-out infinite;
-              transform-origin: 0 0;
+            50% {
+              stroke-opacity: 0.92;
             }
-
-            @keyframes pinFade {
-              0% {
-                opacity: 0.85;
-              }
-              50% {
-                opacity: 1;
-              }
-              100% {
-                opacity: 0.85;
-              }
+            100% {
+              stroke-opacity: 0.55;
             }
+          }
 
-            .pin-ring {
-              animation: ringExpand 1.6s ease-out infinite;
-              transform-origin: 0 0;
+          .current-pin {
+            animation: pinFade 1.6s ease-in-out infinite;
+            transform-origin: 0 0;
+          }
+
+          @keyframes pinFade {
+            0% {
+              opacity: 0.85;
             }
-
-            @keyframes ringExpand {
-              0% {
-                transform: scale(0.55);
-                opacity: 0.75;
-              }
-              70% {
-                transform: scale(1.45);
-                opacity: 0;
-              }
-              100% {
-                transform: scale(1.45);
-                opacity: 0;
-              }
+            50% {
+              opacity: 1;
             }
+            100% {
+              opacity: 0.85;
+            }
+          }
 
+          .pin-ring {
+            animation: ringExpand 1.6s ease-out infinite;
+            transform-origin: 0 0;
+          }
+
+          @keyframes ringExpand {
+            0% {
+              transform: scale(0.55);
+              opacity: 0.75;
+            }
+            70% {
+              transform: scale(1.45);
+              opacity: 0;
+            }
+            100% {
+              transform: scale(1.45);
+              opacity: 0;
+            }
+          }
+
+          .travel-pulse {
+            stroke-dasharray: 6 18;
+            animation: dashMove 3s linear infinite;
+          }
+
+          @keyframes dashMove {
+            to {
+              stroke-dashoffset: -140;
+            }
+          }
+
+          ${Array.from({ length: 24 })
+            .map((_, i) => `.travel-pulse-${i} { animation-delay: -${i * 0.18}s; }`)
+            .join("\n")}
+
+          @media (prefers-reduced-motion: reduce) {
+            .visited-pulse,
+            .visited-border-pulse,
+            .current-pin,
+            .pin-ring,
             .travel-pulse {
-              stroke-dasharray: 6 18;
-              animation: dashMove 3s linear infinite;
+              animation: none;
             }
-
-            @keyframes dashMove {
-              to {
-                stroke-dashoffset: -140;
-              }
-            }
-
-            ${Array.from({ length: 24 })
-              .map((_, i) => `.travel-pulse-${i} { animation-delay: -${i * 0.18}s; }`)
-              .join("\n")}
-
-            @media (prefers-reduced-motion: reduce) {
-              .visited-pulse,
-              .visited-border-pulse,
-              .current-pin,
-              .pin-ring,
-              .travel-pulse {
-                animation: none;
-              }
-            }
-          `}</style>
-        </div>
+          }
+        `}</style>
       </div>
     </div>
   );
