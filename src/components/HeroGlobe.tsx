@@ -135,7 +135,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const zoomRef = useRef(1);
-  const panRef = useRef({ x: 0, y: 0 });
+  const panRef = useRef({ x: number; y: number }>({ x: 0, y: 0 });
   useEffect(() => void (zoomRef.current = zoom), [zoom]);
   useEffect(() => void (panRef.current = pan), [pan]);
 
@@ -159,6 +159,10 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
   const center = size / 2;
   const baseRadius = size * 0.42;
 
+  // A big circular “cosmic” halo behind the planet (bigger than the viewBox).
+  // We render it, plus stars/nebula, clipped to a circle that fades to 0 opacity.
+  const haloR = baseRadius * 2.55; // big diffusion radius
+
   // Load topojson
   useEffect(() => {
     let mounted = true;
@@ -180,41 +184,40 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
     const SPEED = 25; // deg/sec
     const RAMP = 10; // higher = snappier ramp back
     const ZOOM_STOP_AT = 1.02; // stop auto-spin when zoomed in past this
-  
+
     let raf = 0;
     let last = performance.now();
     let spinSpeed = SPEED;
-  
+
     const tick = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
-  
+
       const zoomedIn = zoomRef.current > ZOOM_STOP_AT;
       const interacting = draggingRef.current;
-  
-      // ✅ If zoomed in OR dragging, pause auto-spin
+
+      // If zoomed in OR dragging, pause auto-spin
       const target = zoomedIn || interacting ? 0 : SPEED;
-  
+
       // smooth ramp to target speed
       spinSpeed += (target - spinSpeed) * (1 - Math.exp(-RAMP * dt));
-  
+
       if (Math.abs(spinSpeed) > 0.001) {
         setRotLon((r) => (r + spinSpeed * dt) % 360);
       }
-  
-      // ✅ Only “return tilt to default” when user isn't actively dragging
+
+      // Only “return tilt to default” when user isn't actively dragging
       if (!interacting) {
         const k = 6;
         setRotLat((lat) => lat + (DEFAULT_TILT - lat) * (1 - Math.exp(-k * dt)));
       }
-  
+
       raf = requestAnimationFrame(tick);
     };
-  
+
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, []);
-  
 
   const visitedSet = useMemo(() => {
     const set = new Set<string>();
@@ -227,10 +230,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
   // Projection is centered; zoom affects projection scale only.
   const projection = useMemo(() => {
-    return geoOrthographic()
-      .scale(baseRadius * zoom)
-      .translate([center, center])
-      .clipAngle(90);
+    return geoOrthographic().scale(baseRadius * zoom).translate([center, center]).clipAngle(90);
   }, [baseRadius, zoom, center]);
 
   // apply rotation for this render
@@ -250,21 +250,71 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
   const viewCenterLonLat = useMemo<[number, number]>(() => [-rotLon, -rotLat], [rotLon, rotLat]);
 
-  // Starfield
-  const stars = useMemo(() => {
-    const rand = mulberry32(hashString("stars"));
-    const pts: { x: number; y: number; r: number; o: number }[] = [];
-    const n = 120;
+  /**
+   * Background motion:
+   * - Cosmic halo gradient stays FIXED.
+   * - Stars + nebula drift based on rotLon/rotLat (parallax), clipped to a big circle.
+   * - We wrap positions so it never “hits a box edge”.
+   */
+  const starField = useMemo(() => {
+    const rand = mulberry32(hashString("bg-stars-v2"));
+    const field = size * 2.8; // larger than viewBox so wraps look natural
+    const pts: { x: number; y: number; r: number; o: number; tw: number }[] = [];
+    const n = 260;
 
     for (let i = 0; i < n; i++) {
-      const x = rand() * size;
-      const y = rand() * size;
-      const r = 0.5 + rand() * 1.4;
-      const o = 0.03 + rand() * 0.12;
-      pts.push({ x, y, r, o });
+      const x = rand() * field - field / 2;
+      const y = rand() * field - field / 2;
+      const r = 0.5 + rand() * 1.7;
+      const o = 0.03 + rand() * 0.18;
+      const tw = rand(); // used for tiny twinkle variance (optional)
+      pts.push({ x, y, r, o, tw });
     }
-    return pts;
+    return { field, pts };
   }, [size]);
+
+  const nebula = useMemo(() => {
+    const rand = mulberry32(hashString("bg-nebula-v2"));
+    const blobs: { x: number; y: number; r: number; o: number; hue: "blue" | "violet" | "cyan" }[] = [];
+    const field = size * 2.2;
+    const n = 10;
+
+    const hues: Array<"blue" | "violet" | "cyan"> = ["blue", "violet", "cyan"];
+
+    for (let i = 0; i < n; i++) {
+      const x = rand() * field - field / 2;
+      const y = rand() * field - field / 2;
+      const r = size * (0.22 + rand() * 0.38);
+      const o = 0.06 + rand() * 0.12;
+      const hue = hues[Math.floor(rand() * hues.length)];
+      blobs.push({ x, y, r, o, hue });
+    }
+    return { field, blobs };
+  }, [size]);
+
+  const bgShift = useMemo(() => {
+    // Tune: pixels per degree (stars move with spin direction)
+    const starPxPerDegX = 1.15;
+    const starPxPerDegY = 0.6;
+
+    // Stars drift “with” rotation (so if globe spins right, stars drift right too)
+    const sx = rotLon * starPxPerDegX;
+    const sy = -rotLat * starPxPerDegY;
+
+    // Nebula slower = more depth
+    const nx = rotLon * starPxPerDegX * 0.35;
+    const ny = -rotLat * starPxPerDegY * 0.35;
+
+    return { sx, sy, nx, ny };
+  }, [rotLon, rotLat]);
+
+  const wrap = (v: number, range: number) => {
+    // wrap into [-range/2, +range/2)
+    const half = range / 2;
+    let x = v;
+    x = ((x + half) % range + range) % range; // [0, range)
+    return x - half;
+  };
 
   // City lights per visited country
   const lightsByCountry = useMemo(() => {
@@ -278,7 +328,6 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
       const pts: { x: number; y: number; r: number; o: number }[] = [];
       const n = 46;
 
-      // generate in a box around the sphere; clipping will keep it inside
       for (let i = 0; i < n; i++) {
         const x = center - baseRadius + rand() * (baseRadius * 2);
         const y = center - baseRadius + rand() * (baseRadius * 2);
@@ -476,7 +525,6 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
     };
 
     const onTouchMove = (e: TouchEvent) => {
-      // pinch zoom
       if (e.touches.length === 2 && pinchDistRef.current != null) {
         e.preventDefault();
 
@@ -492,7 +540,6 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
         return;
       }
 
-      // one-finger rotate (always)
       if (e.touches.length === 1 && draggingRef.current) {
         e.preventDefault();
 
@@ -512,7 +559,6 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
       draggingRef.current = false;
     };
 
-    // Pointer (mouse) drag rotate ALWAYS
     const onPointerDown = (e: PointerEvent) => {
       draggingRef.current = true;
       dragStartXRef.current = e.clientX;
@@ -568,7 +614,6 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
     };
   }, [baseRadius, center, projection, size]);
 
-  // Cursor feedback: now draggable at all times
   const cursorClass = "cursor-grab active:cursor-grabbing";
 
   return (
@@ -576,49 +621,78 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
       <div
         ref={containerRef}
         className={[
-          "relative w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] md:w-[320px] md:h-[320px] mx-auto select-none",
+          // give extra breathing room so the big circular cosmic background has room to diffuse
+          "relative overflow-visible w-[240px] h-[240px] sm:w-[290px] sm:h-[290px] md:w-[380px] md:h-[380px] mx-auto select-none",
           cursorClass,
         ].join(" ")}
         style={{ touchAction: "none" }}
         aria-label="Interactive globe. Scroll/pinch to zoom, drag to rotate."
         title="Scroll/pinch to zoom • Drag to rotate"
       >
-        <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full block" style={{ overflow: "hidden" }}>
+        <svg
+          viewBox={`0 0 ${size} ${size}`}
+          className="h-full w-full block overflow-visible"
+          style={{ overflow: "visible" }}
+        >
           <defs>
-            {/* Ocean shading */}
+            {/* ===== Cosmic circular background (FIXED) ===== */}
+            <radialGradient id="cosmicHalo" cx="50%" cy="50%" r="50%">
+              {/* deep void core */}
+              <stop offset="0%" stopColor="rgba(0,0,0,0.92)" />
+              {/* subtle blue lift */}
+              <stop offset="28%" stopColor="rgba(8, 14, 32, 0.88)" />
+              {/* nebula-ish band */}
+              <stop offset="55%" stopColor="rgba(12, 28, 62, 0.38)" />
+              {/* fade to transparent at edges */}
+              <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+            </radialGradient>
+
+            <clipPath id="haloClip">
+              <circle cx={center} cy={center} r={haloR} />
+            </clipPath>
+
+            <filter id="nebulaBlur" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation="18" />
+            </filter>
+
+            <filter id="starGlow" x="-120%" y="-120%" width="340%" height="340%">
+              <feGaussianBlur stdDeviation="0.8" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+
+            {/* ===== Globe shading ===== */}
             <radialGradient id="oceanShade" cx="28%" cy="26%" r="78%">
               <stop offset="0%" stopColor={oceanB} stopOpacity="1" />
               <stop offset="58%" stopColor={oceanA} stopOpacity="1" />
               <stop offset="100%" stopColor="#02040a" stopOpacity="1" />
             </radialGradient>
 
-            {/* Terminator shading */}
             <radialGradient id="terminator" cx="36%" cy="40%" r="80%">
               <stop offset="0%" stopColor="rgba(0,0,0,0)" />
               <stop offset="55%" stopColor="rgba(0,0,0,0.10)" />
               <stop offset="100%" stopColor="rgba(0,0,0,0.52)" />
             </radialGradient>
 
-            {/* Atmosphere glow */}
+            {/* Slightly stronger blue aura like your reference */}
             <radialGradient id="atmo" cx="35%" cy="30%" r="75%">
-              <stop offset="0%" stopColor="rgba(143,211,255,0.08)" />
-              <stop offset="60%" stopColor="rgba(143,211,255,0.03)" />
-              <stop offset="100%" stopColor="rgba(143,211,255,0)" />
+              <stop offset="0%" stopColor="rgba(110, 200, 255, 0.12)" />
+              <stop offset="55%" stopColor="rgba(110, 200, 255, 0.045)" />
+              <stop offset="100%" stopColor="rgba(110, 200, 255, 0)" />
             </radialGradient>
 
-            {/* Specular highlight */}
             <radialGradient id="spec" cx="30%" cy="28%" r="55%">
               <stop offset="0%" stopColor="rgba(255,255,255,0.14)" />
               <stop offset="40%" stopColor="rgba(255,255,255,0.05)" />
               <stop offset="70%" stopColor="rgba(255,255,255,0)" />
             </radialGradient>
 
-            {/* ✅ Clip to the fixed visible sphere */}
             <clipPath id="sphereClip">
               <circle cx={center} cy={center} r={baseRadius} />
             </clipPath>
 
-            {/* Gold glow (visited countries) */}
             <filter id="goldGlow" x="-60%" y="-60%" width="220%" height="220%">
               <feGaussianBlur stdDeviation="2.6" result="blur" />
               <feMerge>
@@ -627,7 +701,6 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
               </feMerge>
             </filter>
 
-            {/* Dark gold outline glow (visited borders) */}
             <filter id="goldBorderGlow" x="-70%" y="-70%" width="240%" height="240%">
               <feGaussianBlur stdDeviation="1.25" result="b" />
               <feMerge>
@@ -636,7 +709,6 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
               </feMerge>
             </filter>
 
-            {/* Light glow for speckles */}
             <filter id="lightGlow" x="-80%" y="-80%" width="260%" height="260%">
               <feGaussianBlur stdDeviation="1.9" result="b" />
               <feMerge>
@@ -645,7 +717,6 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
               </feMerge>
             </filter>
 
-            {/* Pin glow */}
             <filter id="pinGlow" x="-80%" y="-80%" width="260%" height="260%">
               <feGaussianBlur stdDeviation="2.2" result="b" />
               <feMerge>
@@ -654,7 +725,6 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
               </feMerge>
             </filter>
 
-            {/* Route glow */}
             <filter id="routeGlow" x="-80%" y="-80%" width="260%" height="260%">
               <feGaussianBlur stdDeviation="1.4" result="b" />
               <feMerge>
@@ -663,7 +733,6 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
               </feMerge>
             </filter>
 
-            {/* Node glow (neon) */}
             <filter id="nodeGlow" x="-120%" y="-120%" width="340%" height="340%">
               <feGaussianBlur stdDeviation="1.3" result="b" />
               <feMerge>
@@ -672,32 +741,98 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
               </feMerge>
             </filter>
 
-            {/* Soft outer shadow */}
+            {/* Planet shadow & aura */}
             <filter id="sphereShadow" x="-25%" y="-25%" width="150%" height="150%">
-              <feDropShadow dx="0" dy="6" stdDeviation="8" floodColor="#000" floodOpacity="0.10" />
+              <feDropShadow dx="0" dy="10" stdDeviation="10" floodColor="#000" floodOpacity="0.14" />
+            </filter>
+
+            <filter id="auraGlow" x="-90%" y="-90%" width="280%" height="280%">
+              <feGaussianBlur stdDeviation="6" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
             </filter>
           </defs>
 
-          {/* STARFIELD (stays fixed behind) */}
-          <g opacity={0.75}>
-            {stars.map((s, i) => (
-              <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#ffffff" opacity={s.o} />
-            ))}
+          {/* ===== Big circular cosmic background (NOT a square) ===== */}
+          <g clipPath="url(#haloClip)">
+            <circle cx={center} cy={center} r={haloR} fill="url(#cosmicHalo)" />
+
+            {/* Nebula (moves slowly with spin direction) */}
+            <g
+              filter="url(#nebulaBlur)"
+              opacity={0.92}
+              transform={`translate(${bgShift.nx.toFixed(2)} ${bgShift.ny.toFixed(2)})`}
+            >
+              {nebula.blobs.map((b, i) => {
+                const x = center + wrap(b.x, nebula.field);
+                const y = center + wrap(b.y, nebula.field);
+
+                const fill =
+                  b.hue === "blue"
+                    ? "rgba(85, 155, 255, 1)"
+                    : b.hue === "cyan"
+                      ? "rgba(110, 220, 255, 1)"
+                      : "rgba(140, 110, 255, 1)";
+
+                return <circle key={i} cx={x} cy={y} r={b.r} fill={fill} opacity={b.o} />;
+              })}
+            </g>
+
+            {/* Stars (move more with spin direction) */}
+            <g filter="url(#starGlow)" opacity={0.92} transform={`translate(${bgShift.sx.toFixed(2)} ${bgShift.sy.toFixed(2)})`}>
+              {starField.pts.map((s, i) => {
+                const x = center + wrap(s.x, starField.field);
+                const y = center + wrap(s.y, starField.field);
+
+                // A tiny “twinkle” variance that’s stable per star:
+                const tw = 0.85 + 0.25 * Math.sin((s.tw * 1000 + rotLon) * 0.12);
+
+                return (
+                  <circle
+                    key={i}
+                    cx={x}
+                    cy={y}
+                    r={s.r}
+                    fill="#ffffff"
+                    opacity={clamp(s.o * tw, 0.01, 0.22)}
+                  />
+                );
+              })}
+            </g>
           </g>
 
-          {/* Shadow OUTSIDE the clip so it looks natural */}
+          {/* ===== Globe shadow + aura outside the sphere clip ===== */}
           <circle cx={center} cy={center} r={baseRadius} fill="transparent" filter="url(#sphereShadow)" />
 
-          {/* ✅ Everything that could ever “spill” is inside the clip */}
-          <g clipPath="url(#sphereClip)">
-            {/* Ocean fill */}
-            <circle cx={center} cy={center} r={baseRadius} fill="url(#oceanShade)" />
+          {/* Blue aura ring like your reference planet */}
+          <circle
+            cx={center}
+            cy={center}
+            r={baseRadius + 6}
+            fill="none"
+            stroke="rgba(90, 170, 255, 0.20)"
+            strokeWidth={2.5}
+            filter="url(#auraGlow)"
+          />
+          <circle
+            cx={center}
+            cy={center}
+            r={baseRadius + 10}
+            fill="none"
+            stroke="rgba(90, 170, 255, 0.10)"
+            strokeWidth={6}
+            filter="url(#auraGlow)"
+            opacity={0.75}
+          />
 
-            {/* Atmo/spec */}
+          {/* ===== Globe contents clipped to sphere ===== */}
+          <g clipPath="url(#sphereClip)">
+            <circle cx={center} cy={center} r={baseRadius} fill="url(#oceanShade)" />
             <circle cx={center} cy={center} r={baseRadius} fill="url(#atmo)" />
             <circle cx={center} cy={center} r={baseRadius} fill="url(#spec)" />
 
-            {/* ✅ Pan the map layer ONLY (zoom already applied via projection.scale) */}
             <g transform={`translate(${pan.x} ${pan.y})`}>
               {/* ROUTE */}
               {routeSegments.length ? (
@@ -740,12 +875,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
                     return (
                       <g key={`node-${i}`}>
-                        <circle
-                          cx={n.x}
-                          cy={n.y}
-                          r={r * 2.2}
-                          fill={`rgba(${routeColor},${0.10 + 0.05 * n.t})`}
-                        />
+                        <circle cx={n.x} cy={n.y} r={r * 2.2} fill={`rgba(${routeColor},${0.10 + 0.05 * n.t})`} />
                         <circle cx={n.x} cy={n.y} r={r} fill={`rgba(${routeColor},${a})`} />
                         <circle
                           cx={n.x - 0.6}
@@ -822,7 +952,6 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
               ) : null}
             </g>
 
-            {/* Terminator on top, clipped */}
             <circle cx={center} cy={center} r={baseRadius} fill="url(#terminator)" />
           </g>
         </svg>
