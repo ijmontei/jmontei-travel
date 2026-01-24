@@ -646,17 +646,18 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
           <defs>
             {/* ===== Cosmic halo: fully dark "void" until voidR, then fades out ===== */}
             <radialGradient id="cosmicHalo" cx="50%" cy="50%" r="50%">
-              {/* keep center clean-ish */}
-              <stop offset="0%" stopColor="rgba(0,0,0,0)" />
-              <stop offset={`${Math.max(12, voidPct - 32)}%`} stopColor="rgba(6,10,20,0.18)" />
+            <stop offset="0%" stopColor="rgba(0,0,0,0)" />
+            <stop offset={`${Math.max(12, voidPct - 32)}%`} stopColor="rgba(6,10,20,0.14)" />
+            <stop offset={`${Math.max(30, voidPct - 14)}%`} stopColor="rgba(2,4,10,0.60)" />
 
-              {/* build into the void */}
-              <stop offset={`${Math.max(30, voidPct - 14)}%`} stopColor="rgba(2,4,10,0.62)" />
-              <stop offset={`${voidPct}%`} stopColor="rgba(0,0,0,0.92)" />
+            {/* VOID ZONE */}
+            <stop offset={`${voidPct}%`} stopColor="rgba(0,0,0,1)" />
+            <stop offset={`${Math.min(100, voidPct + 8)}%`} stopColor="rgba(0,0,0,1)" />
 
-              {/* then gently relax outward (mask will actually fade to 0) */}
-              <stop offset="100%" stopColor="rgba(0,0,0,0.60)" />
-            </radialGradient>
+            {/* After void, can relax (mask will fade it away anyway) */}
+            <stop offset="100%" stopColor="rgba(0,0,0,0.55)" />
+          </radialGradient>
+
 
             {/* ===== Opacity feather: FULL opacity through the void zone, then fade to 0 ===== */}
             <radialGradient id="haloFeather" cx="50%" cy="50%" r="50%">
@@ -682,7 +683,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
             <filter id="starGlow" x="-180%" y="-180%" width="460%" height="460%">
             {/* soft bloom */}
-            <feGaussianBlur stdDeviation="1.6" result="blur" />
+            <feGaussianBlur stdDeviation="1.2" result="blur" />
             {/* slightly boost bloom intensity */}
             <feMerge>
               <feMergeNode in="blur" />
@@ -786,8 +787,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
           {/* ===== Tight circular cosmic background ===== */}
           <g clipPath="url(#haloClip)" mask="url(#haloMask)">
             {/* Halo base: edge near-black, diffuses inward */}
-            <circle cx={center} cy={center} r={haloR} fill="url(#cosmicHalo)" filter="url(#nebulaBlur)" opacity={0.98} />
-
+            <circle cx={center} cy={center} r={haloR} fill="url(#cosmicHalo)" opacity={1} />
             {/* Nebula (moves slowly with spin direction) */}
             <g
               filter="url(#nebulaBlur)"
@@ -823,7 +823,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
               const coreO = clamp(s.o * tw, 0.01, 0.20);
 
               // soft halo opacity stays subtle to avoid “cartoon glow”
-              const haloO = clamp(coreO * 0.28, 0.008, 0.06);
+              const haloO = clamp(coreO * 0.18, 0.004, 0.035);
 
               return (
                 <g key={i}>
