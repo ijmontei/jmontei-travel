@@ -242,7 +242,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
   const oceanA = "#050b15";
   const oceanB = "#0b1a33";
   const landBase = "rgba(255,255,255,0.04)";
-  const border = "rgba(0, 187, 255, 0.32))";
+  const border = "rgba(170, 195, 230, 0.14)";
   const glowGold = "#f5de88";
 
   const routeColor = "80, 200, 255";
