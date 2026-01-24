@@ -166,10 +166,10 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
    * - Gradient goes near-black at the outer edge of the halo
    */
   // Inner "void" radius (fully opaque space pocket)
-  const voidR = baseRadius * 1.35;
+  const voidR = baseRadius * 1.25;
 
   // Total halo radius (void + feather). 2x makes the visible halo feel doubled.
-  const haloR = voidR * 2.0;
+  const haloR = voidR * 1.5;
 
   // Where the feather begins (as a % of the gradient)
   const voidPct = (voidR / haloR) * 100; // ~50%
