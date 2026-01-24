@@ -134,8 +134,12 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  const zoomRef = useRef(1);
-  const panRef = useRef({ x: number; y: number }>({ x: 0, y: 0 });
+const zoomRef = useRef(1);
+const panRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+useEffect(() => void (zoomRef.current = zoom), [zoom]);
+useEffect(() => void (panRef.current = pan), [pan]);
+
   useEffect(() => void (zoomRef.current = zoom), [zoom]);
   useEffect(() => void (panRef.current = pan), [pan]);
 
