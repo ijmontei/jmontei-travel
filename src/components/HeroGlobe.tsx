@@ -649,11 +649,12 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
           </radialGradient>
             {/* Feather opacity for halo edge (this is the key) */}
             <radialGradient id="haloFeather" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="white" stopOpacity="1" />
-              <stop offset="78%" stopColor="white" stopOpacity="1" />
-              <stop offset="92%" stopColor="white" stopOpacity="0.35" />
-              <stop offset="100%" stopColor="white" stopOpacity="0" />
-            </radialGradient>
+            <stop offset="0%" stopColor="white" stopOpacity="1" />
+            <stop offset="84%" stopColor="white" stopOpacity="1" />
+            <stop offset="95%" stopColor="white" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="white" stopOpacity="0" />
+          </radialGradient>
+
 
             <mask id="haloMask">
               <circle cx={center} cy={center} r={haloR} fill="url(#haloFeather)" />
@@ -668,13 +669,17 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
               <feGaussianBlur stdDeviation="14" />
             </filter>
 
-            <filter id="starGlow" x="-120%" y="-120%" width="340%" height="340%">
-              <feGaussianBlur stdDeviation="0.8" result="b" />
-              <feMerge>
-                <feMergeNode in="b" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
+            <filter id="starGlow" x="-180%" y="-180%" width="460%" height="460%">
+            {/* soft bloom */}
+            <feGaussianBlur stdDeviation="1.6" result="blur" />
+            {/* slightly boost bloom intensity */}
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+
 
             {/* ===== Globe shading ===== */}
             <radialGradient id="oceanShade" cx="28%" cy="26%" r="78%">
@@ -794,25 +799,32 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
             </g>
 
             {/* Stars (move more with spin direction) */}
-            <g filter="url(#starGlow)" opacity={0.90} transform={`translate(${bgShift.sx.toFixed(2)} ${bgShift.sy.toFixed(2)})`}>
-              {starField.pts.map((s, i) => {
-                const x = center + wrap(s.x, starField.field);
-                const y = center + wrap(s.y, starField.field);
+            <g
+            filter="url(#starGlow)"
+            opacity={0.92}
+            transform={`translate(${bgShift.sx.toFixed(2)} ${bgShift.sy.toFixed(2)})`}
+          >
+            {starField.pts.map((s, i) => {
+              const x = center + wrap(s.x, starField.field);
+              const y = center + wrap(s.y, starField.field);
 
-                const tw = 0.85 + 0.25 * Math.sin((s.tw * 1000 + rotLon) * 0.12);
+              const tw = 0.85 + 0.25 * Math.sin((s.tw * 1000 + rotLon) * 0.12);
+              const coreO = clamp(s.o * tw, 0.01, 0.20);
 
-                return (
-                  <circle
-                    key={i}
-                    cx={x}
-                    cy={y}
-                    r={s.r}
-                    fill="#ffffff"
-                    opacity={clamp(s.o * tw, 0.01, 0.20)}
-                  />
-                );
-              })}
-            </g>
+              // soft halo opacity stays subtle to avoid “cartoon glow”
+              const haloO = clamp(coreO * 0.28, 0.008, 0.06);
+
+              return (
+                <g key={i}>
+                  {/* halo */}
+                  <circle cx={x} cy={y} r={s.r * 2.8} fill="#ffffff" opacity={haloO} />
+                  {/* core */}
+                  <circle cx={x} cy={y} r={s.r} fill="#ffffff" opacity={coreO} />
+                </g>
+              );
+            })}
+          </g>
+
           </g>
 
           {/* ===== Globe shadow + aura outside the sphere clip ===== */}
