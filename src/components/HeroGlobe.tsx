@@ -8,6 +8,11 @@ type Props = {
   visitedCountries: string[];
   currentCountry?: string | null;
   routeCountries?: string[]; // ordered oldest->newest
+
+  // ✅ satellite/hologram inputs (computed in HomeView)
+  latestCountry?: string | null;
+  latestCapital?: string | null;
+  latestTimeZone?: string | null; // IANA TZ, e.g. "Europe/Lisbon"
 };
 
 function normalizeCountryName(name: string) {
@@ -117,8 +122,39 @@ function centroidOfFeature(f: any): [number, number] | null {
   return [sx / coords.length, sy / coords.length];
 }
 
-export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: Props) {
+export function HeroGlobe({
+  visitedCountries,
+  currentCountry,
+  routeCountries,
+  latestCountry,
+  latestCapital,
+  latestTimeZone,
+}: Props) {
   const [features, setFeatures] = useState<any[]>([]);
+
+  // ✅ Local clock string (based on latestTimeZone from HomeView)
+  const [localTimeStr, setLocalTimeStr] = useState<string>("");
+
+  useEffect(() => {
+    if (!latestTimeZone) {
+      setLocalTimeStr("");
+      return;
+    }
+
+    const fmt = new Intl.DateTimeFormat(undefined, {
+      timeZone: latestTimeZone,
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+
+    const tick = () => setLocalTimeStr(fmt.format(new Date()));
+    tick();
+
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [latestTimeZone]);
 
   // --- Rotation (user can drag anytime) ---
   const DEFAULT_TILT = -18; // degrees
@@ -177,44 +213,43 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
   // Auto spin with smooth ramp back after user interaction + tilt returns to default
   useEffect(() => {
-  const SPEED = 25; // deg/sec
-  const RAMP = 10; // higher = snappier ramp back
-  const ZOOM_STOP_AT = 1.02; // stop auto-spin when zoomed in past this
+    const SPEED = 25; // deg/sec
+    const RAMP = 10; // higher = snappier ramp back
+    const ZOOM_STOP_AT = 1.02; // stop auto-spin when zoomed in past this
 
-  let raf = 0;
-  let last = performance.now();
-  let spinSpeed = SPEED;
+    let raf = 0;
+    let last = performance.now();
+    let spinSpeed = SPEED;
 
-  const tick = (now: number) => {
-    const dt = (now - last) / 1000;
-    last = now;
+    const tick = (now: number) => {
+      const dt = (now - last) / 1000;
+      last = now;
 
-    const zoomedIn = zoomRef.current > ZOOM_STOP_AT;
-    const interacting = draggingRef.current;
+      const zoomedIn = zoomRef.current > ZOOM_STOP_AT;
+      const interacting = draggingRef.current;
 
-    // ✅ If zoomed in OR dragging, pause auto-spin
-    const target = zoomedIn || interacting ? 0 : SPEED;
+      // If zoomed in OR dragging, pause auto-spin
+      const target = zoomedIn || interacting ? 0 : SPEED;
 
-    // smooth ramp to target speed
-    spinSpeed += (target - spinSpeed) * (1 - Math.exp(-RAMP * dt));
+      // smooth ramp to target speed
+      spinSpeed += (target - spinSpeed) * (1 - Math.exp(-RAMP * dt));
 
-    if (Math.abs(spinSpeed) > 0.001) {
-      setRotLon((r) => (r + spinSpeed * dt) % 360);
-    }
+      if (Math.abs(spinSpeed) > 0.001) {
+        setRotLon((r) => (r + spinSpeed * dt) % 360);
+      }
 
-    // ✅ Only “return tilt to default” when user isn't actively dragging
-    if (!interacting) {
-      const k = 6;
-      setRotLat((lat) => lat + (DEFAULT_TILT - lat) * (1 - Math.exp(-k * dt)));
-    }
+      // Only “return tilt to default” when user isn't actively dragging
+      if (!interacting) {
+        const k = 6;
+        setRotLat((lat) => lat + (DEFAULT_TILT - lat) * (1 - Math.exp(-k * dt)));
+      }
+
+      raf = requestAnimationFrame(tick);
+    };
 
     raf = requestAnimationFrame(tick);
-  };
-
-  raf = requestAnimationFrame(tick);
-  return () => cancelAnimationFrame(raf);
-}, []);
-
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   const visitedSet = useMemo(() => {
     const set = new Set<string>();
@@ -571,6 +606,14 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
   // Cursor feedback: now draggable at all times
   const cursorClass = "cursor-grab active:cursor-grabbing";
 
+  // Derived strings for holo
+  const holoLoc = useMemo(() => {
+    const parts = [];
+    if (latestCapital) parts.push(latestCapital);
+    if (latestCountry) parts.push(latestCountry);
+    return parts.length ? parts.join(", ") : "Unknown";
+  }, [latestCapital, latestCountry]);
+
   return (
     <div className="mt-0">
       <div
@@ -583,6 +626,44 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
         aria-label="Interactive globe. Scroll/pinch to zoom, drag to rotate."
         title="Scroll/pinch to zoom • Drag to rotate"
       >
+        {/* ✅ SATELLITE ORBIT + HOLOGRAM */}
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute left-0 top-0 h-full w-full sat-orbit">
+            <div
+              className="sat"
+              style={{
+                left: "18%",
+                top: "18%",
+              }}
+            >
+              <div className="sat-body">
+                <div className="sat-core" />
+                <div className="sat-panel sat-panel-left" />
+                <div className="sat-panel sat-panel-right" />
+                <div className="sat-lens" />
+              </div>
+
+              <svg className="sat-beam" viewBox="0 0 120 140" aria-hidden="true">
+                <defs>
+                  <linearGradient id="beamG" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="rgba(80, 255, 160, 0.0)" />
+                    <stop offset="30%" stopColor="rgba(80, 255, 160, 0.25)" />
+                    <stop offset="100%" stopColor="rgba(80, 255, 160, 0.0)" />
+                  </linearGradient>
+                </defs>
+                <path d="M 60 14 L 12 138 L 108 138 Z" fill="url(#beamG)" className="beam-flicker" />
+              </svg>
+
+              <div className="holo">
+                <div className="holo-title">LIVE SIGNAL</div>
+                <div className="holo-loc">{holoLoc}</div>
+                <div className="holo-time">{latestTimeZone ? localTimeStr : "—"}</div>
+                <div className="holo-sub">{latestTimeZone ? latestTimeZone : "No timezone mapping yet"}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full block" style={{ overflow: "hidden" }}>
           <defs>
             {/* Ocean shading */}
@@ -679,7 +760,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
           </defs>
 
           {/* STARFIELD (stays fixed behind) */}
-          <g opacity={0.}>
+          <g opacity={0.0}>
             {stars.map((s, i) => (
               <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#ffffff" opacity={s.o} />
             ))}
@@ -740,12 +821,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
 
                     return (
                       <g key={`node-${i}`}>
-                        <circle
-                          cx={n.x}
-                          cy={n.y}
-                          r={r * 2.2}
-                          fill={`rgba(${routeColor},${0.10 + 0.05 * n.t})`}
-                        />
+                        <circle cx={n.x} cy={n.y} r={r * 2.2} fill={`rgba(${routeColor},${0.10 + 0.05 * n.t})`} />
                         <circle cx={n.x} cy={n.y} r={r} fill={`rgba(${routeColor},${a})`} />
                         <circle
                           cx={n.x - 0.6}
@@ -913,12 +989,180 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
             .map((_, i) => `.travel-pulse-${i} { animation-delay: -${i * 0.18}s; }`)
             .join("\n")}
 
+          /* --- Satellite / Hologram --- */
+          .sat-orbit {
+            animation: satOrbit 10.5s linear infinite;
+            transform-origin: 50% 50%;
+          }
+
+          @keyframes satOrbit {
+            from {
+              transform: rotate(0deg);
+            }
+            to {
+              transform: rotate(360deg);
+            }
+          }
+
+          /* Satellite itself counters rotation so it feels like it’s orbiting but “aiming” */
+          .sat {
+            position: absolute;
+            transform: rotate(-360deg);
+            animation: satCounter 10.5s linear infinite;
+            transform-origin: center;
+            filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.28));
+          }
+
+          @keyframes satCounter {
+            from {
+              transform: rotate(0deg);
+            }
+            to {
+              transform: rotate(-360deg);
+            }
+          }
+
+          .sat-body {
+            position: relative;
+            width: 42px;
+            height: 22px;
+          }
+
+          .sat-core {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 18px;
+            height: 14px;
+            transform: translate(-50%, -50%);
+            border-radius: 6px;
+            background: rgba(245, 222, 136, 0.25);
+            border: 1px solid rgba(245, 222, 136, 0.35);
+            box-shadow: 0 0 18px rgba(245, 222, 136, 0.18);
+          }
+
+          .sat-panel {
+            position: absolute;
+            top: 50%;
+            width: 16px;
+            height: 10px;
+            transform: translateY(-50%);
+            border-radius: 4px;
+            background: rgba(143, 211, 255, 0.1);
+            border: 1px solid rgba(143, 211, 255, 0.22);
+          }
+
+          .sat-panel-left {
+            left: -2px;
+          }
+          .sat-panel-right {
+            right: -2px;
+          }
+
+          .sat-lens {
+            position: absolute;
+            left: 50%;
+            bottom: -5px;
+            width: 8px;
+            height: 8px;
+            transform: translateX(-50%);
+            border-radius: 999px;
+            background: rgba(80, 255, 160, 0.65);
+            box-shadow: 0 0 14px rgba(80, 255, 160, 0.35);
+          }
+
+          .sat-beam {
+            position: absolute;
+            left: 50%;
+            top: 16px;
+            width: 120px;
+            height: 140px;
+            transform: translateX(-50%) rotate(12deg);
+            opacity: 0.95;
+          }
+
+          .beam-flicker {
+            animation: beamFlicker 1.9s ease-in-out infinite;
+            transform-origin: 50% 0%;
+          }
+
+          @keyframes beamFlicker {
+            0% {
+              opacity: 0.65;
+              transform: scaleY(0.98);
+            }
+            50% {
+              opacity: 1;
+              transform: scaleY(1.02);
+            }
+            100% {
+              opacity: 0.65;
+              transform: scaleY(0.98);
+            }
+          }
+
+          .holo {
+            position: absolute;
+            left: 60px;
+            top: -6px;
+            min-width: 155px;
+            padding: 10px 10px 9px 10px;
+            border-radius: 12px;
+            background: rgba(0, 15, 10, 0.45);
+            border: 1px solid rgba(80, 255, 160, 0.28);
+            box-shadow: 0 0 0 1px rgba(80, 255, 160, 0.1) inset, 0 12px 26px rgba(0, 0, 0, 0.28),
+              0 0 22px rgba(80, 255, 160, 0.1);
+            backdrop-filter: blur(10px);
+          }
+
+          .holo:before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: 12px;
+            background: linear-gradient(180deg, rgba(80, 255, 160, 0.1), rgba(80, 255, 160, 0));
+            opacity: 0.85;
+            pointer-events: none;
+          }
+
+          .holo-title {
+            font-size: 10px;
+            letter-spacing: 0.14em;
+            font-weight: 700;
+            color: rgba(160, 255, 205, 0.85);
+          }
+
+          .holo-loc {
+            margin-top: 4px;
+            font-size: 12px;
+            font-weight: 700;
+            color: rgba(215, 255, 235, 0.92);
+            line-height: 1.15;
+          }
+
+          .holo-time {
+            margin-top: 6px;
+            font-size: 13px;
+            font-weight: 800;
+            color: rgba(80, 255, 160, 0.95);
+            text-shadow: 0 0 14px rgba(80, 255, 160, 0.22);
+          }
+
+          .holo-sub {
+            margin-top: 4px;
+            font-size: 10px;
+            color: rgba(180, 255, 220, 0.7);
+          }
+
           @media (prefers-reduced-motion: reduce) {
             .visited-pulse,
             .visited-border-pulse,
             .current-pin,
             .pin-ring,
-            .travel-pulse {
+            .travel-pulse,
+            .sat-orbit,
+            .sat,
+            .beam-flicker {
               animation: none;
             }
           }

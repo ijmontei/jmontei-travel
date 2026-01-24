@@ -7,6 +7,8 @@ import { CountryAccordion } from "@/components/CountryAccordion";
 import { HeroGlobe } from "@/components/HeroGlobe";
 import { Reveal } from "@/components/Reveal";
 
+import { getCapitalTzForCountry } from "@/lib/countryTimezones";
+
 function ModeToggle({
   mode,
   setMode,
@@ -62,35 +64,45 @@ export function HomeView({ posts }: { posts: Post[] }) {
 
   // Countries used by globe (visited = any country appearing in posts)
   const visitedCountries = useMemo(
-    () => Array.from(new Set(posts.map((p) => p.country).filter(Boolean) as string[])),
+    () =>
+      Array.from(
+        new Set(posts.map((p) => p.country).filter(Boolean) as string[])
+      ),
     [posts]
   );
 
   // Current country = latest post country (posts are newest-first)
   const currentCountry = posts?.[0]?.country ?? null;
 
-      const routeCountries = useMemo(() => {
-        const sorted = [...posts]
-          .filter((p) => Boolean(p.publishedAt))
-          .sort(
-            (a, b) =>
-              new Date(a.publishedAt as string).getTime() -
-              new Date(b.publishedAt as string).getTime()
-          );
-      
-        const seen = new Set<string>();
-        const route: string[] = [];
-      
-        for (const p of sorted) {
-          const c = (p.country || "").trim();
-          if (!c) continue;
-          if (seen.has(c)) continue;
-          seen.add(c);
-          route.push(c);
-        }
-      
-        return route;
-      }, [posts]);
+  const routeCountries = useMemo(() => {
+    const sorted = [...posts]
+      .filter((p) => Boolean(p.publishedAt))
+      .sort(
+        (a, b) =>
+          new Date(a.publishedAt as string).getTime() -
+          new Date(b.publishedAt as string).getTime()
+      );
+
+    const seen = new Set<string>();
+    const route: string[] = [];
+
+    for (const p of sorted) {
+      const c = (p.country || "").trim();
+      if (!c) continue;
+      if (seen.has(c)) continue;
+      seen.add(c);
+      route.push(c);
+    }
+
+    return route;
+  }, [posts]);
+
+  // ✅ Latest “signal” info derived from latest post’s country
+  const latestCountry = posts?.[0]?.country ?? null;
+
+  const latestTzInfo = useMemo(() => {
+    return getCapitalTzForCountry(latestCountry);
+  }, [latestCountry]);
 
   return (
     <main className="min-h-screen text-[hsl(var(--text))]">
@@ -103,6 +115,10 @@ export function HomeView({ posts }: { posts: Post[] }) {
               visitedCountries={visitedCountries}
               currentCountry={currentCountry}
               routeCountries={routeCountries}
+              // ✅ satellite/hologram inputs
+              latestCountry={latestCountry}
+              latestCapital={latestTzInfo?.capital ?? null}
+              latestTimeZone={latestTzInfo?.timeZone ?? null}
             />
           </div>
 
