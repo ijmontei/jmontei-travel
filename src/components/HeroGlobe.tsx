@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -9,11 +8,6 @@ type Props = {
   visitedCountries: string[];
   currentCountry?: string | null;
   routeCountries?: string[]; // ordered oldest->newest
-
-  // ✅ satellite/hologram inputs (computed in HomeView)
-  latestCountry?: string | null;
-  latestCapital?: string | null;
-  latestTimeZone?: string | null; // IANA TZ, e.g. "Europe/Lisbon"
 };
 
 function normalizeCountryName(name: string) {
@@ -45,8 +39,6 @@ const COUNTRY_ALIASES: Record<string, string> = {
   moldova: "moldova, republic of",
   brunei: "brunei darussalam",
 
-  // If you want Hong Kong to be its own display country in UI,
-  // keep your app-level flag, but for topo matching, China is fine:
   "hong kong": "china",
   hongkong: "china",
 
@@ -125,39 +117,8 @@ function centroidOfFeature(f: any): [number, number] | null {
   return [sx / coords.length, sy / coords.length];
 }
 
-export function HeroGlobe({
-  visitedCountries,
-  currentCountry,
-  routeCountries,
-  latestCountry,
-  latestCapital,
-  latestTimeZone,
-}: Props) {
+export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: Props) {
   const [features, setFeatures] = useState<any[]>([]);
-
-  // ✅ Local clock string (based on latestTimeZone from HomeView)
-  const [localTimeStr, setLocalTimeStr] = useState<string>("");
-
-  useEffect(() => {
-    if (!latestTimeZone) {
-      setLocalTimeStr("");
-      return;
-    }
-
-    const fmt = new Intl.DateTimeFormat(undefined, {
-      timeZone: latestTimeZone,
-      weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-
-    const tick = () => setLocalTimeStr(fmt.format(new Date()));
-    tick();
-
-    const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
-  }, [latestTimeZone]);
 
   // --- Rotation (user can drag anytime) ---
   const DEFAULT_TILT = -18; // degrees
@@ -216,43 +177,44 @@ export function HeroGlobe({
 
   // Auto spin with smooth ramp back after user interaction + tilt returns to default
   useEffect(() => {
-    const SPEED = 25; // deg/sec
-    const RAMP = 10; // higher = snappier ramp back
-    const ZOOM_STOP_AT = 1.02; // stop auto-spin when zoomed in past this
+  const SPEED = 25; // deg/sec
+  const RAMP = 10; // higher = snappier ramp back
+  const ZOOM_STOP_AT = 1.02; // stop auto-spin when zoomed in past this
 
-    let raf = 0;
-    let last = performance.now();
-    let spinSpeed = SPEED;
+  let raf = 0;
+  let last = performance.now();
+  let spinSpeed = SPEED;
 
-    const tick = (now: number) => {
-      const dt = (now - last) / 1000;
-      last = now;
+  const tick = (now: number) => {
+    const dt = (now - last) / 1000;
+    last = now;
 
-      const zoomedIn = zoomRef.current > ZOOM_STOP_AT;
-      const interacting = draggingRef.current;
+    const zoomedIn = zoomRef.current > ZOOM_STOP_AT;
+    const interacting = draggingRef.current;
 
-      // If zoomed in OR dragging, pause auto-spin
-      const target = zoomedIn || interacting ? 0 : SPEED;
+    // ✅ If zoomed in OR dragging, pause auto-spin
+    const target = zoomedIn || interacting ? 0 : SPEED;
 
-      // smooth ramp to target speed
-      spinSpeed += (target - spinSpeed) * (1 - Math.exp(-RAMP * dt));
+    // smooth ramp to target speed
+    spinSpeed += (target - spinSpeed) * (1 - Math.exp(-RAMP * dt));
 
-      if (Math.abs(spinSpeed) > 0.001) {
-        setRotLon((r) => (r + spinSpeed * dt) % 360);
-      }
+    if (Math.abs(spinSpeed) > 0.001) {
+      setRotLon((r) => (r + spinSpeed * dt) % 360);
+    }
 
-      // Only “return tilt to default” when user isn't actively dragging
-      if (!interacting) {
-        const k = 6;
-        setRotLat((lat) => lat + (DEFAULT_TILT - lat) * (1 - Math.exp(-k * dt)));
-      }
-
-      raf = requestAnimationFrame(tick);
-    };
+    // ✅ Only “return tilt to default” when user isn't actively dragging
+    if (!interacting) {
+      const k = 6;
+      setRotLat((lat) => lat + (DEFAULT_TILT - lat) * (1 - Math.exp(-k * dt)));
+    }
 
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
+  };
+
+  raf = requestAnimationFrame(tick);
+  return () => cancelAnimationFrame(raf);
+}, []);
+
 
   const visitedSet = useMemo(() => {
     const set = new Set<string>();
@@ -265,7 +227,10 @@ export function HeroGlobe({
 
   // Projection is centered; zoom affects projection scale only.
   const projection = useMemo(() => {
-    return geoOrthographic().scale(baseRadius * zoom).translate([center, center]).clipAngle(90);
+    return geoOrthographic()
+      .scale(baseRadius * zoom)
+      .translate([center, center])
+      .clipAngle(90);
   }, [baseRadius, zoom, center]);
 
   // apply rotation for this render
@@ -408,8 +373,7 @@ export function HeroGlobe({
 
       if (pts.length < 2) continue;
 
-      const d =
-        "M " + pts.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join(" L ");
+      const d = "M " + pts.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join(" L ");
 
       segs.push({ d, t });
     }
@@ -463,10 +427,7 @@ export function HeroGlobe({
 
       const unpanned = { x: anchor.x - p0.x, y: anchor.y - p0.y };
 
-      const invertFn = (projection as any).invert as
-        | ((p: [number, number]) => [number, number] | null)
-        | undefined;
-
+      const invertFn = (projection as any).invert as ((p: [number, number]) => [number, number] | null) | undefined;
       const ll = invertFn?.([unpanned.x, unpanned.y]);
       if (!ll) {
         setZoom(z1);
@@ -610,68 +571,19 @@ export function HeroGlobe({
   // Cursor feedback: now draggable at all times
   const cursorClass = "cursor-grab active:cursor-grabbing";
 
-  // Derived strings for holo
-  const holoLoc = useMemo(() => {
-    const parts = [];
-    if (latestCountry) parts.push(latestCountry);
-    return parts.length ? parts.join(", ") : "Unknown";
-  }, [latestCapital, latestCountry]);
-
   return (
-    <div className="mt-0 w-full flex flex-col sm:flex-row sm:items-start sm:justify-center gap-6">
-      {/* LEFT: Globe (centered normally) */}
+    <div className="mt-0">
       <div
         ref={containerRef}
         className={[
-          "relative w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] md:w-[320px] md:h-[320px]",
-          "mx-auto sm:mx-0 select-none",
+          "relative w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] md:w-[320px] md:h-[320px] mx-auto select-none",
           cursorClass,
         ].join(" ")}
         style={{ touchAction: "none" }}
         aria-label="Interactive globe. Scroll/pinch to zoom, drag to rotate."
         title="Scroll/pinch to zoom • Drag to rotate"
       >
-        {/* ✅ SATELLITE stays on globe area, but no beam now */}
-        <div className="pointer-events-none absolute inset-0">
-          <div className="sat-wrap">
-            <div className="sat">
-              <div className="sat-body">
-                <div className="sat-panels">
-                  <div className="sat-panel sat-panel-left" />
-                  <div className="sat-panel sat-panel-right" />
-                </div>
-  
-                <div className="sat-core">
-                  <div className="sat-core-inner" />
-                  <div className="sat-gold-band" />
-                  <div className="sat-vent sat-vent-1" />
-                  <div className="sat-vent sat-vent-2" />
-                  <div className="sat-bolt sat-bolt-1" />
-                  <div className="sat-bolt sat-bolt-2" />
-                </div>
-  
-                <div className="sat-arm sat-arm-left" />
-                <div className="sat-arm sat-arm-right" />
-  
-                <div className="sat-antenna">
-                  <div className="sat-antenna-stem" />
-                  <div className="sat-antenna-dish" />
-                </div>
-  
-                <div className="sat-lens">
-                  <div className="sat-lens-glow" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-  
-        {/* Globe SVG unchanged */}
-        <svg
-          viewBox={`0 0 ${size} ${size}`}
-          className="h-full w-full block"
-          style={{ overflow: "hidden" }}
-        >
+        <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full block" style={{ overflow: "hidden" }}>
           <defs>
             {/* Ocean shading */}
             <radialGradient id="oceanShade" cx="28%" cy="26%" r="78%">
@@ -679,33 +591,33 @@ export function HeroGlobe({
               <stop offset="58%" stopColor={oceanA} stopOpacity="1" />
               <stop offset="100%" stopColor="#02040a" stopOpacity="1" />
             </radialGradient>
-  
+
             {/* Terminator shading */}
             <radialGradient id="terminator" cx="36%" cy="40%" r="80%">
               <stop offset="0%" stopColor="rgba(0,0,0,0)" />
               <stop offset="55%" stopColor="rgba(0,0,0,0.10)" />
               <stop offset="100%" stopColor="rgba(0,0,0,0.52)" />
             </radialGradient>
-  
+
             {/* Atmosphere glow */}
             <radialGradient id="atmo" cx="35%" cy="30%" r="75%">
               <stop offset="0%" stopColor="rgba(143,211,255,0.08)" />
               <stop offset="60%" stopColor="rgba(143,211,255,0.03)" />
               <stop offset="100%" stopColor="rgba(143,211,255,0)" />
             </radialGradient>
-  
+
             {/* Specular highlight */}
             <radialGradient id="spec" cx="30%" cy="28%" r="55%">
               <stop offset="0%" stopColor="rgba(255,255,255,0.14)" />
               <stop offset="40%" stopColor="rgba(255,255,255,0.05)" />
               <stop offset="70%" stopColor="rgba(255,255,255,0)" />
             </radialGradient>
-  
+
             {/* ✅ Clip to the fixed visible sphere */}
             <clipPath id="sphereClip">
               <circle cx={center} cy={center} r={baseRadius} />
             </clipPath>
-  
+
             {/* Gold glow (visited countries) */}
             <filter id="goldGlow" x="-60%" y="-60%" width="220%" height="220%">
               <feGaussianBlur stdDeviation="2.6" result="blur" />
@@ -714,7 +626,7 @@ export function HeroGlobe({
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
-  
+
             {/* Dark gold outline glow (visited borders) */}
             <filter id="goldBorderGlow" x="-70%" y="-70%" width="240%" height="240%">
               <feGaussianBlur stdDeviation="1.25" result="b" />
@@ -723,7 +635,7 @@ export function HeroGlobe({
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
-  
+
             {/* Light glow for speckles */}
             <filter id="lightGlow" x="-80%" y="-80%" width="260%" height="260%">
               <feGaussianBlur stdDeviation="1.9" result="b" />
@@ -732,7 +644,7 @@ export function HeroGlobe({
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
-  
+
             {/* Pin glow */}
             <filter id="pinGlow" x="-80%" y="-80%" width="260%" height="260%">
               <feGaussianBlur stdDeviation="2.2" result="b" />
@@ -741,7 +653,7 @@ export function HeroGlobe({
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
-  
+
             {/* Route glow */}
             <filter id="routeGlow" x="-80%" y="-80%" width="260%" height="260%">
               <feGaussianBlur stdDeviation="1.4" result="b" />
@@ -750,7 +662,7 @@ export function HeroGlobe({
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
-  
+
             {/* Node glow (neon) */}
             <filter id="nodeGlow" x="-120%" y="-120%" width="340%" height="340%">
               <feGaussianBlur stdDeviation="1.3" result="b" />
@@ -759,44 +671,32 @@ export function HeroGlobe({
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
-  
+
             {/* Soft outer shadow */}
             <filter id="sphereShadow" x="-25%" y="-25%" width="150%" height="150%">
-              <feDropShadow
-                dx="0"
-                dy="6"
-                stdDeviation="8"
-                floodColor="#000"
-                floodOpacity="0.10"
-              />
+              <feDropShadow dx="0" dy="6" stdDeviation="8" floodColor="#000" floodOpacity="0.10" />
             </filter>
           </defs>
-  
+
           {/* STARFIELD (stays fixed behind) */}
-          <g opacity={0.0}>
+          <g opacity={0.}>
             {stars.map((s, i) => (
               <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#ffffff" opacity={s.o} />
             ))}
           </g>
-  
+
           {/* Shadow OUTSIDE the clip so it looks natural */}
-          <circle
-            cx={center}
-            cy={center}
-            r={baseRadius}
-            fill="transparent"
-            filter="url(#sphereShadow)"
-          />
-  
+          <circle cx={center} cy={center} r={baseRadius} fill="transparent" filter="url(#sphereShadow)" />
+
           {/* ✅ Everything that could ever “spill” is inside the clip */}
           <g clipPath="url(#sphereClip)">
             {/* Ocean fill */}
             <circle cx={center} cy={center} r={baseRadius} fill="url(#oceanShade)" />
-  
+
             {/* Atmo/spec */}
             <circle cx={center} cy={center} r={baseRadius} fill="url(#atmo)" />
             <circle cx={center} cy={center} r={baseRadius} fill="url(#spec)" />
-  
+
             {/* ✅ Pan the map layer ONLY (zoom already applied via projection.scale) */}
             <g transform={`translate(${pan.x} ${pan.y})`}>
               {/* ROUTE */}
@@ -812,7 +712,7 @@ export function HeroGlobe({
                       strokeLinecap="round"
                     />
                   ))}
-  
+
                   {routeSegments.map(({ d, t }, i) => {
                     if (t <= 0.35) return null;
                     const pulseAlpha = 0.04 + 0.06 * t;
@@ -830,14 +730,14 @@ export function HeroGlobe({
                   })}
                 </g>
               ) : null}
-  
+
               {/* Nodes */}
               {routeNodes.length ? (
                 <g filter="url(#nodeGlow)">
                   {routeNodes.map((n, i) => {
                     const r = 1.3 + 0.3 * n.t;
                     const a = 0.42 + 0.08 * n.t;
-  
+
                     return (
                       <g key={`node-${i}`}>
                         <circle
@@ -859,16 +759,16 @@ export function HeroGlobe({
                   })}
                 </g>
               ) : null}
-  
+
               {/* Countries */}
               {features.map((f, idx) => {
                 const name = normalizeCountryName(f?.properties?.name || "");
                 const isVisited = visitedSet.has(name);
                 const d = pathGen(f) || "";
                 if (!d) return null;
-  
+
                 const clipId = `clip-${idx}`;
-  
+
                 return (
                   <g key={idx}>
                     {isVisited ? (
@@ -878,17 +778,11 @@ export function HeroGlobe({
                         </clipPath>
                       </defs>
                     ) : null}
-  
+
                     {isVisited ? (
-                      <path
-                        d={d}
-                        fill={glowGold}
-                        opacity={0.55}
-                        className="visited-pulse"
-                        filter="url(#goldGlow)"
-                      />
+                      <path d={d} fill={glowGold} opacity={0.55} className="visited-pulse" filter="url(#goldGlow)" />
                     ) : null}
-  
+
                     <path
                       d={d}
                       fill={isVisited ? glowGold : landBase}
@@ -899,29 +793,18 @@ export function HeroGlobe({
                       className={isVisited ? "visited-border-pulse" : undefined}
                       vectorEffect="non-scaling-stroke"
                     />
-  
+
                     {isVisited && lightsByCountry[name]?.length ? (
-                      <g
-                        clipPath={`url(#${clipId})`}
-                        filter="url(#lightGlow)"
-                        className="visited-pulse"
-                      >
+                      <g clipPath={`url(#${clipId})`} filter="url(#lightGlow)" className="visited-pulse">
                         {lightsByCountry[name].map((p, i) => (
-                          <circle
-                            key={i}
-                            cx={p.x}
-                            cy={p.y}
-                            r={p.r}
-                            fill="#ffc83d"
-                            opacity={p.o}
-                          />
+                          <circle key={i} cx={p.x} cy={p.y} r={p.r} fill="#ffc83d" opacity={p.o} />
                         ))}
                       </g>
                     ) : null}
                   </g>
                 );
               })}
-  
+
               {/* Current pin */}
               {currentPoint ? (
                 <g className="current-pin" transform={`translate(${currentPoint.x}, ${currentPoint.y})`}>
@@ -938,104 +821,109 @@ export function HeroGlobe({
                 </g>
               ) : null}
             </g>
-  
+
             {/* Terminator on top, clipped */}
             <circle cx={center} cy={center} r={baseRadius} fill="url(#terminator)" />
           </g>
         </svg>
-      </div>
-  
-      {/* RIGHT: Live Signal card (satellite floats above it, no overlap) */}
-      <div className="relative w-full sm:w-[340px] md:w-[420px] flex justify-center sm:justify-start">
-        {/* satellite above the card */}
-        <div className="pointer-events-none absolute right-6 -top-6 z-20 scale-[0.95]">
-          <div className="sat">
-            <div className="sat-body">
-              <div className="sat-panels">
-                <div className="sat-panel sat-panel-left" />
-                <div className="sat-panel sat-panel-right" />
-              </div>
-  
-              <div className="sat-core">
-                <div className="sat-core-inner" />
-                <div className="sat-gold-band" />
-                <div className="sat-vent sat-vent-1" />
-                <div className="sat-vent sat-vent-2" />
-                <div className="sat-bolt sat-bolt-1" />
-                <div className="sat-bolt sat-bolt-2" />
-              </div>
-  
-              <div className="sat-arm sat-arm-left" />
-              <div className="sat-arm sat-arm-right" />
-  
-              <div className="sat-antenna">
-                <div className="sat-antenna-stem" />
-                <div className="sat-antenna-dish" />
-              </div>
-  
-              <div className="sat-lens">
-                <div className="sat-lens-glow" />
-              </div>
-            </div>
-          </div>
-        </div>
-  
-        <div className="holoCard relative z-10 mt-6">
-          <div className="holoTitle">LIVE SIGNAL</div>
-          <div className="holoLoc">{holoLoc}</div>
-          <div className="holoTime">{latestTimeZone ? localTimeStr : "—"}</div>
-          <div className="holoSub">{latestTimeZone ? latestTimeZone : "No timezone mapping yet"}</div>
-        </div>
-  
+
         <style jsx>{`
-          .holoCard {
-            width: 100%;
-            max-width: 520px;
-            padding: 16px 16px 14px 16px;
-            border-radius: 18px;
-            background: rgba(0, 15, 10, 0.40);
-            border: 1px solid rgba(80, 255, 160, 0.30);
-            box-shadow:
-              0 0 0 1px rgba(80, 255, 160, 0.10) inset,
-              0 16px 34px rgba(0, 0, 0, 0.22),
-              0 0 26px rgba(80, 255, 160, 0.10);
-            backdrop-filter: blur(10px);
+          .visited-pulse {
+            animation: pulseGlow 4.6s ease-in-out infinite;
+            transform-origin: 50% 50%;
           }
-  
-          .holoTitle {
-            font-size: 12px;
-            letter-spacing: 0.14em;
-            font-weight: 800;
-            color: rgba(160, 255, 205, 0.85);
+
+          .visited-border-pulse {
+            animation: borderPulse 4.6s ease-in-out infinite;
           }
-  
-          .holoLoc {
-            margin-top: 8px;
-            font-size: 22px;
-            font-weight: 800;
-            color: rgba(215, 255, 235, 0.95);
-            line-height: 1.1;
+
+          @keyframes pulseGlow {
+            0% {
+              opacity: 0.55;
+            }
+            50% {
+              opacity: 0.88;
+            }
+            100% {
+              opacity: 0.55;
+            }
           }
-  
-          .holoTime {
-            margin-top: 12px;
-            font-size: 22px;
-            font-weight: 900;
-            color: rgba(80, 255, 160, 0.95);
-            text-shadow: 0 0 14px rgba(80, 255, 160, 0.22);
+
+          @keyframes borderPulse {
+            0% {
+              stroke-opacity: 0.55;
+            }
+            50% {
+              stroke-opacity: 0.92;
+            }
+            100% {
+              stroke-opacity: 0.55;
+            }
           }
-  
-          .holoSub {
-            margin-top: 10px;
-            font-size: 16px;
-            color: rgba(180, 255, 220, 0.70);
+
+          .current-pin {
+            animation: pinFade 1.6s ease-in-out infinite;
+            transform-origin: 0 0;
+          }
+
+          @keyframes pinFade {
+            0% {
+              opacity: 0.85;
+            }
+            50% {
+              opacity: 1;
+            }
+            100% {
+              opacity: 0.85;
+            }
+          }
+
+          .pin-ring {
+            animation: ringExpand 1.6s ease-out infinite;
+            transform-origin: 0 0;
+          }
+
+          @keyframes ringExpand {
+            0% {
+              transform: scale(0.55);
+              opacity: 0.75;
+            }
+            70% {
+              transform: scale(1.45);
+              opacity: 0;
+            }
+            100% {
+              transform: scale(1.45);
+              opacity: 0;
+            }
+          }
+
+          .travel-pulse {
+            stroke-dasharray: 6 18;
+            animation: dashMove 3s linear infinite;
+          }
+
+          @keyframes dashMove {
+            to {
+              stroke-dashoffset: -140;
+            }
+          }
+
+          ${Array.from({ length: 24 })
+            .map((_, i) => `.travel-pulse-${i} { animation-delay: -${i * 0.18}s; }`)
+            .join("\n")}
+
+          @media (prefers-reduced-motion: reduce) {
+            .visited-pulse,
+            .visited-border-pulse,
+            .current-pin,
+            .pin-ring,
+            .travel-pulse {
+              animation: none;
+            }
           }
         `}</style>
       </div>
     </div>
   );
-  
-  
-
 }
-
