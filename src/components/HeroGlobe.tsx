@@ -169,7 +169,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
   const voidR = baseRadius * 1.25;
 
   // Total halo radius (void + feather). 2x makes the visible halo feel doubled.
-  const haloR = voidR * 1.5;
+  const haloR = voidR * 1.1;
 
   // Where the feather begins (as a % of the gradient)
   const voidPct = (voidR / haloR) * 100; // ~50%
