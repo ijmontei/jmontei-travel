@@ -640,11 +640,24 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
             {/* ===== Cosmic circular background (FIXED) =====
                 Goal: near-black at halo edge, soft diffusion inward, and tight around planet */}
             <radialGradient id="cosmicHalo" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="rgba(0,0,0,0)" />
-              <stop offset="45%" stopColor="rgba(8,12,24,0.25)" />
-              <stop offset="70%" stopColor="rgba(2,4,10,0.85)" />
-              <stop offset="100%" stopColor="rgba(0,0,0,0.98)" />
+            {/* transparent near center so it doesn't muddy the planet */}
+            <stop offset="0%" stopColor="rgba(0,0,0,0)" />
+            <stop offset="40%" stopColor="rgba(8,12,24,0.20)" />
+            <stop offset="70%" stopColor="rgba(2,4,10,0.70)" />
+            {/* IMPORTANT: end transparent so it can blend */}
+            <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+          </radialGradient>
+            {/* Feather opacity for halo edge (this is the key) */}
+            <radialGradient id="haloFeather" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="white" stopOpacity="1" />
+              <stop offset="78%" stopColor="white" stopOpacity="1" />
+              <stop offset="92%" stopColor="white" stopOpacity="0.35" />
+              <stop offset="100%" stopColor="white" stopOpacity="0" />
             </radialGradient>
+
+            <mask id="haloMask">
+              <circle cx={center} cy={center} r={haloR} fill="url(#haloFeather)" />
+            </mask>
 
             <clipPath id="haloClip">
               <circle cx={center} cy={center} r={haloR} />
@@ -755,7 +768,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
           </defs>
 
           {/* ===== Tight circular cosmic background ===== */}
-          <g clipPath="url(#haloClip)">
+          <g clipPath="url(#haloClip)" mask="url(#haloMask)">
             {/* Halo base: edge near-black, diffuses inward */}
             <circle cx={center} cy={center} r={haloR} fill="url(#cosmicHalo)" filter="url(#nebulaBlur)" opacity={0.98} />
 
