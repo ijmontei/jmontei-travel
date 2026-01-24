@@ -617,92 +617,30 @@ export function HeroGlobe({
     return parts.length ? parts.join(", ") : "Unknown";
   }, [latestCapital, latestCountry]);
 
-  // ✅ Dynamic beam rotation so it aims at the current point (or globe center if none)
-  const [beamAngleDeg, setBeamAngleDeg] = useState<number>(16);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    // Satellite anchor constants (match CSS sizes)
-    const RIGHT_PX = 18;
-    const TOP_PX = 18;
-
-    // sat-body: width 62, height 34
-    // lens: bottom -7, size 10 -> center Y ~= 34 - 7 + 5 = 32
-    const SAT_BODY_W = 62;
-    const LENS_CENTER_Y = 32;
-    const LENS_CENTER_X = SAT_BODY_W / 2; // 31
-
-    const recalc = () => {
-      const rect = el.getBoundingClientRect();
-
-      // Convert satellite lens position (px in container) -> svg coords
-      const satPx = {
-        x: rect.width - RIGHT_PX - LENS_CENTER_X,
-        y: TOP_PX + LENS_CENTER_Y,
-      };
-
-      const satSvg = {
-        x: (satPx.x / rect.width) * size,
-        y: (satPx.y / rect.height) * size,
-      };
-
-      // Target: current pin (needs pan because pin is inside the pan group)
-      const targetSvg = currentPoint
-        ? { x: currentPoint.x + pan.x, y: currentPoint.y + pan.y }
-        : { x: center, y: center };
-
-      const dx = targetSvg.x - satSvg.x;
-      const dy = targetSvg.y - satSvg.y;
-
-      // Desired angle from +x axis
-      const desired = (Math.atan2(dy, dx) * 180) / Math.PI;
-
-      // Our beam path points "down" (+y). Down = 90deg from +x axis.
-      const rotate = desired - 90;
-
-      // clamp to keep it looking natural
-      const clamped = clamp(rotate, -40, 60);
-
-      setBeamAngleDeg(clamped);
-    };
-
-    recalc();
-
-    const ro = new ResizeObserver(() => recalc());
-    ro.observe(el);
-
-    return () => ro.disconnect();
-  }, [currentPoint, pan.x, pan.y, center, size]);
-
   return (
-    <div className="mt-0 w-full flex flex-col sm:flex-row sm:items-start sm:justify-center gap-3">
-      {/* LEFT: Globe */}
+    <div className="mt-0 w-full flex flex-col sm:flex-row sm:items-start sm:justify-center gap-6">
+      {/* LEFT: Globe (centered normally) */}
       <div
         ref={containerRef}
         className={[
-          // slightly smaller on mobile + left nudge on larger screens to make room
           "relative w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] md:w-[320px] md:h-[320px]",
-          "mx-auto sm:mx-0 sm:ml-[-10px] select-none",
+          "mx-auto sm:mx-0 select-none",
           cursorClass,
         ].join(" ")}
         style={{ touchAction: "none" }}
         aria-label="Interactive globe. Scroll/pinch to zoom, drag to rotate."
         title="Scroll/pinch to zoom • Drag to rotate"
       >
-        {/* ✅ SATELLITE (top-right) */}
+        {/* ✅ SATELLITE stays on globe area, but no beam now */}
         <div className="pointer-events-none absolute inset-0">
           <div className="sat-wrap">
             <div className="sat">
               <div className="sat-body">
-                {/* Solar panels */}
                 <div className="sat-panels">
                   <div className="sat-panel sat-panel-left" />
                   <div className="sat-panel sat-panel-right" />
                 </div>
   
-                {/* Main bus */}
                 <div className="sat-core">
                   <div className="sat-core-inner" />
                   <div className="sat-gold-band" />
@@ -712,68 +650,23 @@ export function HeroGlobe({
                   <div className="sat-bolt sat-bolt-2" />
                 </div>
   
-                {/* Arms */}
                 <div className="sat-arm sat-arm-left" />
                 <div className="sat-arm sat-arm-right" />
   
-                {/* Antenna */}
                 <div className="sat-antenna">
                   <div className="sat-antenna-stem" />
                   <div className="sat-antenna-dish" />
                 </div>
   
-                {/* Lens */}
                 <div className="sat-lens">
                   <div className="sat-lens-glow" />
                 </div>
               </div>
-  
-              {/* Beam aimed down (dynamic rotation) — narrower + smaller footprint */}
-              <svg
-                className="sat-beam"
-                viewBox="0 0 160 190"
-                aria-hidden="true"
-                style={{
-                  transform: `translateX(-50%) rotate(${beamAngleDeg}deg)`,
-                }}
-              >
-                <defs>
-                  <linearGradient id="beamG" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="rgba(80, 255, 160, 0.0)" />
-                    <stop offset="24%" stopColor="rgba(80, 255, 160, 0.20)" />
-                    <stop offset="58%" stopColor="rgba(80, 255, 160, 0.10)" />
-                    <stop offset="100%" stopColor="rgba(80, 255, 160, 0.0)" />
-                  </linearGradient>
-  
-                  <radialGradient id="beamSoft" cx="50%" cy="10%" r="85%">
-                    <stop offset="0%" stopColor="rgba(80, 255, 160, 0.18)" />
-                    <stop offset="70%" stopColor="rgba(80, 255, 160, 0.05)" />
-                    <stop offset="100%" stopColor="rgba(80, 255, 160, 0.0)" />
-                  </radialGradient>
-                </defs>
-  
-                {/* Narrower cone */}
-                <path
-                  d="M 80 26 L 44 178 L 116 178 Z"
-                  fill="url(#beamG)"
-                  className="beam-flicker"
-                />
-  
-                {/* Smaller footprint */}
-                <ellipse
-                  cx="80"
-                  cy="174"
-                  rx="34"
-                  ry="9"
-                  fill="url(#beamSoft)"
-                  opacity="0.88"
-                />
-              </svg>
             </div>
           </div>
         </div>
   
-        {/* Globe SVG */}
+        {/* Globe SVG unchanged */}
         <svg
           viewBox={`0 0 ${size} ${size}`}
           className="h-full w-full block"
@@ -869,7 +762,13 @@ export function HeroGlobe({
   
             {/* Soft outer shadow */}
             <filter id="sphereShadow" x="-25%" y="-25%" width="150%" height="150%">
-              <feDropShadow dx="0" dy="6" stdDeviation="8" floodColor="#000" floodOpacity="0.10" />
+              <feDropShadow
+                dx="0"
+                dy="6"
+                stdDeviation="8"
+                floodColor="#000"
+                floodOpacity="0.10"
+              />
             </filter>
           </defs>
   
@@ -1002,9 +901,20 @@ export function HeroGlobe({
                     />
   
                     {isVisited && lightsByCountry[name]?.length ? (
-                      <g clipPath={`url(#${clipId})`} filter="url(#lightGlow)" className="visited-pulse">
+                      <g
+                        clipPath={`url(#${clipId})`}
+                        filter="url(#lightGlow)"
+                        className="visited-pulse"
+                      >
                         {lightsByCountry[name].map((p, i) => (
-                          <circle key={i} cx={p.x} cy={p.y} r={p.r} fill="#ffc83d" opacity={p.o} />
+                          <circle
+                            key={i}
+                            cx={p.x}
+                            cy={p.y}
+                            r={p.r}
+                            fill="#ffc83d"
+                            opacity={p.o}
+                          />
                         ))}
                       </g>
                     ) : null}
@@ -1033,379 +943,98 @@ export function HeroGlobe({
             <circle cx={center} cy={center} r={baseRadius} fill="url(#terminator)" />
           </g>
         </svg>
-  
-        <style jsx>{`
-          .visited-pulse {
-            animation: pulseGlow 4.6s ease-in-out infinite;
-            transform-origin: 50% 50%;
-          }
-  
-          .visited-border-pulse {
-            animation: borderPulse 4.6s ease-in-out infinite;
-          }
-  
-          @keyframes pulseGlow {
-            0% { opacity: 0.55; }
-            50% { opacity: 0.88; }
-            100% { opacity: 0.55; }
-          }
-  
-          @keyframes borderPulse {
-            0% { stroke-opacity: 0.55; }
-            50% { stroke-opacity: 0.92; }
-            100% { stroke-opacity: 0.55; }
-          }
-  
-          .current-pin {
-            animation: pinFade 1.6s ease-in-out infinite;
-            transform-origin: 0 0;
-          }
-  
-          @keyframes pinFade {
-            0% { opacity: 0.85; }
-            50% { opacity: 1; }
-            100% { opacity: 0.85; }
-          }
-  
-          .pin-ring {
-            animation: ringExpand 1.6s ease-out infinite;
-            transform-origin: 0 0;
-          }
-  
-          @keyframes ringExpand {
-            0% { transform: scale(0.55); opacity: 0.75; }
-            70% { transform: scale(1.45); opacity: 0; }
-            100% { transform: scale(1.45); opacity: 0; }
-          }
-  
-          .travel-pulse {
-            stroke-dasharray: 6 18;
-            animation: dashMove 3s linear infinite;
-          }
-  
-          @keyframes dashMove {
-            to { stroke-dashoffset: -140; }
-          }
-  
-          ${Array.from({ length: 24 })
-            .map((_, i) => `.travel-pulse-${i} { animation-delay: -${i * 0.18}s; }`)
-            .join("\n")}
-  
-          /* --- Satellite (more realistic) --- */
-          .sat-wrap {
-            position: absolute;
-            right: 16px;
-            top: 12px;
-            width: 0;
-            height: 0;
-          }
-  
-          .sat {
-            position: relative;
-            transform: translate(0, 0);
-            animation: satFloat 4.2s ease-in-out infinite;
-            filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.32));
-          }
-  
-          @keyframes satFloat {
-            0% { transform: translate(0px, 0px) rotate(1deg); }
-            50% { transform: translate(-3px, 4px) rotate(-1deg); }
-            100% { transform: translate(0px, 0px) rotate(1deg); }
-          }
-  
-          .sat-body {
-            position: relative;
-            width: 68px;
-            height: 38px;
-          }
-  
-          .sat-panels {
-            position: absolute;
-            inset: 0;
-          }
-  
-          .sat-panel {
-            position: absolute;
-            top: 50%;
-            width: 28px;
-            height: 16px;
-            transform: translateY(-50%);
-            border-radius: 7px;
-            background: linear-gradient(180deg, rgba(143, 211, 255, 0.20), rgba(143, 211, 255, 0.06));
-            border: 1px solid rgba(170, 195, 230, 0.22);
-            box-shadow:
-              0 0 0 1px rgba(2, 4, 10, 0.22) inset,
-              0 10px 18px rgba(0, 0, 0, 0.18);
-          }
-  
-          .sat-panel:after {
-            content: "";
-            position: absolute;
-            inset: 3px;
-            border-radius: 6px;
-            background: repeating-linear-gradient(
-              90deg,
-              rgba(2, 4, 10, 0.26) 0px,
-              rgba(2, 4, 10, 0.26) 2px,
-              rgba(255, 255, 255, 0.03) 2px,
-              rgba(255, 255, 255, 0.03) 7px
-            );
-            opacity: 0.6;
-          }
-  
-          .sat-panel-left { left: -3px; }
-          .sat-panel-right { right: -3px; }
-  
-          .sat-arm {
-            position: absolute;
-            top: 50%;
-            width: 12px;
-            height: 3px;
-            transform: translateY(-50%);
-            background: rgba(170, 195, 230, 0.22);
-            border: 1px solid rgba(170, 195, 230, 0.16);
-            border-radius: 999px;
-          }
-  
-          .sat-arm-left { left: 22px; }
-          .sat-arm-right { right: 22px; }
-  
-          .sat-core {
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            width: 26px;
-            height: 20px;
-            transform: translate(-50%, -50%);
-            border-radius: 9px;
-            background: linear-gradient(180deg, rgba(245, 222, 136, 0.10), rgba(5, 11, 21, 0.55));
-            border: 1px solid rgba(245, 222, 136, 0.20);
-            box-shadow:
-              0 0 18px rgba(245, 222, 136, 0.10),
-              0 12px 20px rgba(0, 0, 0, 0.22);
-          }
-  
-          .sat-core-inner {
-            position: absolute;
-            inset: 3px;
-            border-radius: 7px;
-            background: radial-gradient(
-              circle at 30% 30%,
-              rgba(255, 255, 255, 0.12),
-              rgba(11, 26, 51, 0.16),
-              rgba(2, 4, 10, 0.40)
-            );
-            border: 1px solid rgba(170, 195, 230, 0.14);
-          }
-  
-          .sat-gold-band {
-            position: absolute;
-            left: 3px;
-            right: 3px;
-            bottom: 3px;
-            height: 4px;
-            border-radius: 999px;
-            background: linear-gradient(
-              90deg,
-              rgba(245, 222, 136, 0.08),
-              rgba(245, 222, 136, 0.32),
-              rgba(245, 222, 136, 0.08)
-            );
-            opacity: 0.95;
-          }
-  
-          .sat-vent {
-            position: absolute;
-            top: 6px;
-            width: 6px;
-            height: 6px;
-            border-radius: 3px;
-            background: rgba(170, 195, 230, 0.10);
-            border: 1px solid rgba(170, 195, 230, 0.16);
-            box-shadow: 0 0 0 1px rgba(2, 4, 10, 0.18) inset;
-          }
-          .sat-vent-1 { left: 5px; }
-          .sat-vent-2 { right: 5px; }
-  
-          .sat-bolt {
-            position: absolute;
-            width: 4px;
-            height: 4px;
-            border-radius: 2px;
-            background: rgba(245, 222, 136, 0.22);
-            border: 1px solid rgba(245, 222, 136, 0.20);
-            box-shadow: 0 0 10px rgba(245, 222, 136, 0.10);
-          }
-          .sat-bolt-1 { left: 6px; bottom: 7px; }
-          .sat-bolt-2 { right: 6px; bottom: 7px; }
-  
-          .sat-antenna {
-            position: absolute;
-            right: -4px;
-            top: 7px;
-            width: 18px;
-            height: 18px;
-          }
-  
-          .sat-antenna-stem {
-            position: absolute;
-            left: 5px;
-            top: 8px;
-            width: 12px;
-            height: 2px;
-            border-radius: 999px;
-            background: rgba(170, 195, 230, 0.22);
-            border: 1px solid rgba(170, 195, 230, 0.14);
-            transform: rotate(-18deg);
-            transform-origin: left center;
-          }
-  
-          .sat-antenna-dish {
-            position: absolute;
-            right: 0px;
-            top: 4px;
-            width: 10px;
-            height: 10px;
-            border-radius: 999px;
-            background: radial-gradient(
-              circle at 30% 30%,
-              rgba(255, 255, 255, 0.12),
-              rgba(143, 211, 255, 0.12),
-              rgba(2, 4, 10, 0.35)
-            );
-            border: 1px solid rgba(170, 195, 230, 0.18);
-            box-shadow: 0 0 14px rgba(143, 211, 255, 0.10);
-          }
-  
-          .sat-lens {
-            position: absolute;
-            left: 50%;
-            bottom: -7px;
-            width: 10px;
-            height: 10px;
-            transform: translateX(-50%);
-            border-radius: 999px;
-            background: radial-gradient(
-              circle at 35% 35%,
-              rgba(255, 255, 255, 0.18),
-              rgba(80, 255, 160, 0.55),
-              rgba(0, 15, 10, 0.72)
-            );
-            border: 1px solid rgba(80, 255, 160, 0.32);
-            box-shadow: 0 0 18px rgba(80, 255, 160, 0.22);
-          }
-  
-          .sat-lens-glow {
-            position: absolute;
-            inset: -10px;
-            border-radius: 999px;
-            background: radial-gradient(circle, rgba(80, 255, 160, 0.16), rgba(80, 255, 160, 0) 70%);
-            filter: blur(2px);
-          }
-  
-          /* Beam */
-          .sat-beam {
-            position: absolute;
-            left: 50%;
-            top: 22px;
-            width: 150px;
-            height: 180px;
-            opacity: 0.90;
-            transform-origin: 50% 0%;
-            will-change: transform;
-          }
-  
-          .beam-flicker {
-            animation: beamFlicker 2.2s ease-in-out infinite;
-            transform-origin: 50% 0%;
-          }
-  
-          @keyframes beamFlicker {
-            0% { opacity: 0.55; transform: scaleY(0.985); }
-            50% { opacity: 1; transform: scaleY(1.02); }
-            100% { opacity: 0.55; transform: scaleY(0.985); }
-          }
-  
-          @media (prefers-reduced-motion: reduce) {
-            .visited-pulse,
-            .visited-border-pulse,
-            .current-pin,
-            .pin-ring,
-            .travel-pulse,
-            .sat,
-            .beam-flicker {
-              animation: none;
-            }
-          }
-        `}</style>
       </div>
   
-      {/* RIGHT: Live Signal (responsive) */}
-      <div className="w-full sm:w-[210px] md:w-[230px] flex justify-center sm:justify-start">
-        <div className="holoCard">
+      {/* RIGHT: Live Signal card (satellite floats above it, no overlap) */}
+      <div className="relative w-full sm:w-[340px] md:w-[420px] flex justify-center sm:justify-start">
+        {/* satellite above the card */}
+        <div className="pointer-events-none absolute right-6 -top-6 z-20 scale-[0.95]">
+          <div className="sat">
+            <div className="sat-body">
+              <div className="sat-panels">
+                <div className="sat-panel sat-panel-left" />
+                <div className="sat-panel sat-panel-right" />
+              </div>
+  
+              <div className="sat-core">
+                <div className="sat-core-inner" />
+                <div className="sat-gold-band" />
+                <div className="sat-vent sat-vent-1" />
+                <div className="sat-vent sat-vent-2" />
+                <div className="sat-bolt sat-bolt-1" />
+                <div className="sat-bolt sat-bolt-2" />
+              </div>
+  
+              <div className="sat-arm sat-arm-left" />
+              <div className="sat-arm sat-arm-right" />
+  
+              <div className="sat-antenna">
+                <div className="sat-antenna-stem" />
+                <div className="sat-antenna-dish" />
+              </div>
+  
+              <div className="sat-lens">
+                <div className="sat-lens-glow" />
+              </div>
+            </div>
+          </div>
+        </div>
+  
+        <div className="holoCard relative z-10 mt-6">
           <div className="holoTitle">LIVE SIGNAL</div>
           <div className="holoLoc">{holoLoc}</div>
           <div className="holoTime">{latestTimeZone ? localTimeStr : "—"}</div>
           <div className="holoSub">{latestTimeZone ? latestTimeZone : "No timezone mapping yet"}</div>
-  
-          <style jsx>{`
-            .holoCard {
-              width: 100%;
-              max-width: 260px;
-              padding: 12px 12px 11px 12px;
-              border-radius: 14px;
-              background: rgba(0, 15, 10, 0.42);
-              border: 1px solid rgba(80, 255, 160, 0.30);
-              box-shadow:
-                0 0 0 1px rgba(80, 255, 160, 0.10) inset,
-                0 14px 28px rgba(0, 0, 0, 0.22),
-                0 0 22px rgba(80, 255, 160, 0.10);
-              backdrop-filter: blur(10px);
-            }
-  
-            .holoCard:before {
-              content: "";
-              position: absolute;
-              inset: 0;
-              border-radius: 14px;
-              background: linear-gradient(180deg, rgba(80, 255, 160, 0.10), rgba(80, 255, 160, 0));
-              opacity: 0.85;
-              pointer-events: none;
-            }
-  
-            .holoTitle {
-              font-size: 10px;
-              letter-spacing: 0.14em;
-              font-weight: 800;
-              color: rgba(160, 255, 205, 0.85);
-            }
-  
-            .holoLoc {
-              margin-top: 6px;
-              font-size: 13px;
-              font-weight: 800;
-              color: rgba(215, 255, 235, 0.95);
-              line-height: 1.15;
-            }
-  
-            .holoTime {
-              margin-top: 8px;
-              font-size: 14px;
-              font-weight: 900;
-              color: rgba(80, 255, 160, 0.95);
-              text-shadow: 0 0 14px rgba(80, 255, 160, 0.22);
-            }
-  
-            .holoSub {
-              margin-top: 5px;
-              font-size: 10px;
-              color: rgba(180, 255, 220, 0.70);
-            }
-          `}</style>
         </div>
+  
+        <style jsx>{`
+          .holoCard {
+            width: 100%;
+            max-width: 520px;
+            padding: 16px 16px 14px 16px;
+            border-radius: 18px;
+            background: rgba(0, 15, 10, 0.40);
+            border: 1px solid rgba(80, 255, 160, 0.30);
+            box-shadow:
+              0 0 0 1px rgba(80, 255, 160, 0.10) inset,
+              0 16px 34px rgba(0, 0, 0, 0.22),
+              0 0 26px rgba(80, 255, 160, 0.10);
+            backdrop-filter: blur(10px);
+          }
+  
+          .holoTitle {
+            font-size: 12px;
+            letter-spacing: 0.14em;
+            font-weight: 800;
+            color: rgba(160, 255, 205, 0.85);
+          }
+  
+          .holoLoc {
+            margin-top: 8px;
+            font-size: 22px;
+            font-weight: 800;
+            color: rgba(215, 255, 235, 0.95);
+            line-height: 1.1;
+          }
+  
+          .holoTime {
+            margin-top: 12px;
+            font-size: 22px;
+            font-weight: 900;
+            color: rgba(80, 255, 160, 0.95);
+            text-shadow: 0 0 14px rgba(80, 255, 160, 0.22);
+          }
+  
+          .holoSub {
+            margin-top: 10px;
+            font-size: 16px;
+            color: rgba(180, 255, 220, 0.70);
+          }
+        `}</style>
       </div>
     </div>
   );
+  
   
 
 }
