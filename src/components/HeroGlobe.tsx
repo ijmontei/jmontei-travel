@@ -639,7 +639,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
           <defs>
             {/* ===== Cosmic circular background (FIXED) =====
                 Goal: near-black at halo edge, soft diffusion inward, and tight around planet */}
-            <radialGradient id="cosmicHalo" cx="50%" cy="50%" r="50%">
+            <radialGradient id="cosmicHalo" cx="50%" cy="50%" r="75%">
             {/* transparent near center so it doesn't muddy the planet */}
             <stop offset="0%" stopColor="rgba(0,0,0,0)" />
             <stop offset="40%" stopColor="rgba(8,12,24,0.20)" />
@@ -648,7 +648,7 @@ export function HeroGlobe({ visitedCountries, currentCountry, routeCountries }: 
             <stop offset="100%" stopColor="rgba(0,0,0,0)" />
           </radialGradient>
             {/* Feather opacity for halo edge (this is the key) */}
-            <radialGradient id="haloFeather" cx="50%" cy="50%" r="50%">
+            <radialGradient id="haloFeather" cx="50%" cy="50%" r="75%">
             <stop offset="0%" stopColor="white" stopOpacity="1" />
             <stop offset="84%" stopColor="white" stopOpacity="1" />
             <stop offset="95%" stopColor="white" stopOpacity="0.25" />
