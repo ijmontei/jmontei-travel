@@ -221,40 +221,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
             (day-by-day)
           </span>
         </h3>
-        <p className="text-sm text-zinc-500">
-          Where we went, where we stayed, and what we did — generated from our posts.
-        </p>
       </div>
-
-      {/* Current location card */}
-      {(latest.city || latest.country) ? (
-        <div className="mt-5 rounded-2xl border bg-gradient-to-r from-white via-zinc-50 to-white p-4 shadow-sm">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
-                CURRENT LOCATION
-              </div>
-              <div className="mt-1 text-base font-semibold text-zinc-900">
-                {[latest.city, latest.country].filter(Boolean).join(" — ")}
-              </div>
-              {latest.date ? (
-                <div className="mt-1 text-xs text-zinc-500">
-                  Last updated {new Date(latest.date).toLocaleDateString()}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <span className="rounded-full border bg-[#414141] px-3 py-1 text-xs font-semibold text-[#f5de88] shadow-sm">
-                Live itinerary
-              </span>
-              <span className="rounded-full border bg-white px-3 py-1 text-xs text-zinc-700 shadow-sm">
-                Auto from posts
-              </span>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       {/* Timeline wrapper */}
       <div className="mt-6 relative">
