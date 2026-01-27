@@ -65,6 +65,8 @@ export const post = defineType({
               { title: "Airbnb", value: "Airbnb" },
               { title: "Guesthouse", value: "Guesthouse" },
               { title: "Friend/Family", value: "Friend/Family" },
+              { title: "WOOF", value: "WOOF" },
+              { title: "Workaway", value: "Workaway" },
               { title: "Other", value: "Other" },
             ],
           },
