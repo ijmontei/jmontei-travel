@@ -154,9 +154,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h3 className="text-lg font-semibold tracking-tight">Itinerary</h3>
-        <p className="text-sm text-zinc-500">
-          A day-by-day view generated from your posts (city, accommodation, activities).
-        </p>
       </div>
 
       <div className="inline-flex rounded-full border bg-white/60 p-1 shadow-sm backdrop-blur">
