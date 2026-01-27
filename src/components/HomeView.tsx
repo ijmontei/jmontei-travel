@@ -108,6 +108,26 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
       });
   }, [posts]);
 
+  // Latest (for "Current location")
+  const latest = useMemo(() => {
+    const newest = [...posts]
+      .filter((p) => Boolean(p.publishedAt))
+      .sort(
+        (a, b) =>
+          (safeDate(b.publishedAt as string)?.getTime() ?? 0) -
+          (safeDate(a.publishedAt as string)?.getTime() ?? 0)
+      )[0];
+
+    const city = (newest as any)?.city as string | undefined;
+    const country = newest?.country as string | undefined;
+
+    return {
+      city,
+      country,
+      date: newest?.publishedAt,
+    };
+  }, [posts]);
+
   // Group by day using publishedAt (your "day anchor")
   const byDay = useMemo(() => {
     const map = new Map<string, { day: Date; items: Post[] }>();
@@ -134,242 +154,303 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
 
   return (
     <section className="mt-6">
+      {/* Header */}
       <div className="flex flex-col gap-2">
-        <h3 className="text-lg font-semibold tracking-tight">Itinerary</h3>
+        <div className="flex items-end justify-between gap-3">
+          <h3 className="text-xl font-semibold tracking-tight">
+            Itinerary
+            <span className="ml-2 align-middle text-xs font-semibold tracking-wide text-zinc-500">
+              (day-by-day)
+            </span>
+          </h3>
+        </div>
+
         <p className="text-sm text-zinc-500">
-          A day-by-day view generated from your posts (city, accommodation, activities).
+          Where we went, where we stayed, and what we did — generated from our posts.
         </p>
       </div>
 
-      <div className="mt-5 space-y-4">
-        {byDay.map(({ day, items }) => {
-          // Pull day-level rollups from all posts on that day
-          const countries = uniq(items.map((p) => p.country).filter(Boolean) as string[]);
-          const cities = uniq(items.map((p: any) => p.city).filter(Boolean) as string[]);
-
-          const accommodationNames = uniq(
-            items.map((p: any) => p.accommodation?.name).filter(Boolean) as string[]
-          );
-          const accommodationTypes = uniq(
-            items.map((p: any) => p.accommodation?.type).filter(Boolean) as string[]
-          );
-          const accommodationLinks = uniq(
-            items.map((p: any) => p.accommodation?.link).filter(Boolean) as string[]
-          );
-
-          const activityObjs = items.flatMap((p: any) => (p.activities ?? []) as any[]);
-          const activityTitles = uniq(activityObjs.map((a) => a?.title).filter(Boolean) as string[]);
-          const activityNotes = uniq(activityObjs.map((a) => a?.notes).filter(Boolean) as string[]);
-
-          const locationLine = [cities.join(" • "), countries.join(" • ")]
-            .filter((x) => x && x.trim().length)
-            .join(" — ");
-
-          return (
-            <details key={yyyyMmDd(day)} className="group rounded-2xl border bg-white">
-              <summary className="cursor-pointer list-none px-4 py-4 sm:px-5 sm:py-5">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="text-sm font-semibold text-zinc-900">
-                      {formatDayLabel(day)}
-                    </div>
-
-                    {locationLine ? (
-                      <div className="mt-1 text-sm text-zinc-600">{locationLine}</div>
-                    ) : (
-                      <div className="mt-1 text-sm text-zinc-400">
-                        Add city + country to make this pop.
-                      </div>
-                    )}
-
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {cities.slice(0, 2).map((c, i) => (
-                        <span
-                          key={`city-${i}`}
-                          className="rounded-full border bg-zinc-50 px-2.5 py-1 text-xs text-zinc-700"
-                        >
-                          {c}
-                        </span>
-                      ))}
-                      {countries.slice(0, 2).map((c, i) => (
-                        <span
-                          key={`country-${i}`}
-                          className="rounded-full border bg-zinc-50 px-2.5 py-1 text-xs text-zinc-700"
-                        >
-                          {c}
-                        </span>
-                      ))}
-                      {activityTitles.length ? (
-                        <span className="rounded-full border bg-[#414141] px-2.5 py-1 text-xs text-[#f5de88]">
-                          {activityTitles.length} activit
-                          {activityTitles.length === 1 ? "y" : "ies"}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="text-xs text-zinc-500">
-                    {items.length} post{items.length === 1 ? "" : "s"}{" "}
-                    <span className="ml-2 inline-block rounded-full border bg-zinc-50 px-2 py-0.5">
-                      Expand
-                    </span>
-                  </div>
+      {/* Current location card */}
+      {(latest.city || latest.country) ? (
+        <div className="mt-5 rounded-2xl border bg-gradient-to-r from-white via-zinc-50 to-white p-4 shadow-sm">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
+                CURRENT LOCATION
+              </div>
+              <div className="mt-1 text-base font-semibold text-zinc-900">
+                {[latest.city, latest.country].filter(Boolean).join(" — ")}
+              </div>
+              {latest.date ? (
+                <div className="mt-1 text-xs text-zinc-500">
+                  Last updated {new Date(latest.date).toLocaleDateString()}
                 </div>
-              </summary>
+              ) : null}
+            </div>
 
-              <div className="border-t px-4 pb-5 pt-5 sm:px-5">
-                <div className="grid gap-4 md:grid-cols-2">
-                  {/* LEFT: Stay + Activities */}
-                  <div className="space-y-4">
-                    {/* Accommodation */}
-                    <div className="rounded-2xl border bg-zinc-50 p-4">
-                      <div className="text-[11px] font-semibold text-zinc-500">
-                        WHERE WE STAYED
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full border bg-[#414141] px-3 py-1 text-xs font-semibold text-[#f5de88] shadow-sm">
+                Live itinerary
+              </span>
+              <span className="rounded-full border bg-white px-3 py-1 text-xs text-zinc-700 shadow-sm">
+                Auto from posts
+              </span>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Timeline list wrapper */}
+      <div className="mt-6 relative">
+        {/* vertical line */}
+        <div className="pointer-events-none absolute left-[14px] top-0 h-full w-px bg-gradient-to-b from-transparent via-zinc-300 to-transparent" />
+
+        <div className="space-y-5">
+          {byDay.map(({ day, items }) => {
+            // Rollups
+            const countries = uniq(items.map((p) => p.country).filter(Boolean) as string[]);
+            const cities = uniq(items.map((p: any) => p.city).filter(Boolean) as string[]);
+
+            const accommodationNames = uniq(
+              items.map((p: any) => p.accommodation?.name).filter(Boolean) as string[]
+            );
+            const accommodationTypes = uniq(
+              items.map((p: any) => p.accommodation?.type).filter(Boolean) as string[]
+            );
+            const accommodationLinks = uniq(
+              items.map((p: any) => p.accommodation?.link).filter(Boolean) as string[]
+            );
+
+            const activityObjs = items.flatMap((p: any) => (p.activities ?? []) as any[]);
+            const activityTitles = uniq(activityObjs.map((a) => a?.title).filter(Boolean) as string[]);
+            const activityNotes = uniq(activityObjs.map((a) => a?.notes).filter(Boolean) as string[]);
+
+            const locationLine = [cities.join(" • "), countries.join(" • ")]
+              .filter((x) => x && x.trim().length)
+              .join(" — ");
+
+            const isLatestDay =
+              latest?.date && yyyyMmDd(new Date(latest.date)) === yyyyMmDd(day);
+
+            return (
+              <details
+                key={yyyyMmDd(day)}
+                className={[
+                  "group relative rounded-2xl border bg-white shadow-sm",
+                  "transition hover:shadow-md",
+                ].join(" ")}
+              >
+                {/* timeline dot */}
+                <div className="absolute left-[8px] top-6 h-3 w-3 rounded-full border bg-white shadow-sm" />
+                {/* accent ring for latest day */}
+                {isLatestDay ? (
+                  <div className="absolute left-[6px] top-[22px] h-4 w-4 rounded-full border-2 border-[#f5de88]/80" />
+                ) : null}
+
+                <summary className="cursor-pointer list-none px-5 py-5 pl-12">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-base font-semibold tracking-tight text-zinc-900">
+                          {formatDayLabel(day)}
+                        </div>
+                        {isLatestDay ? (
+                          <span className="rounded-full border bg-[#414141] px-2.5 py-1 text-[11px] font-semibold text-[#f5de88]">
+                            Today
+                          </span>
+                        ) : null}
                       </div>
 
-                      {accommodationNames.length ? (
-                        <>
-                          <div className="mt-2 text-sm font-semibold text-zinc-900">
-                            {accommodationNames.join(" • ")}
-                          </div>
+                      {locationLine ? (
+                        <div className="mt-1 text-sm text-zinc-600">{locationLine}</div>
+                      ) : (
+                        <div className="mt-1 text-sm text-zinc-400">
+                          Add city + country to make this pop.
+                        </div>
+                      )}
 
-                          {accommodationTypes.length ? (
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {accommodationTypes.map((t, idx) => (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {cities.slice(0, 2).map((c, i) => (
+                          <span
+                            key={`city-${i}`}
+                            className="rounded-full border bg-zinc-50 px-2.5 py-1 text-xs text-zinc-700"
+                          >
+                            {c}
+                          </span>
+                        ))}
+                        {countries.slice(0, 2).map((c, i) => (
+                          <span
+                            key={`country-${i}`}
+                            className="rounded-full border bg-zinc-50 px-2.5 py-1 text-xs text-zinc-700"
+                          >
+                            {c}
+                          </span>
+                        ))}
+                        {activityTitles.length ? (
+                          <span className="rounded-full border bg-[#414141] px-2.5 py-1 text-xs font-semibold text-[#f5de88]">
+                            {activityTitles.length} activit{activityTitles.length === 1 ? "y" : "ies"}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="text-xs text-zinc-500">
+                      {items.length} post{items.length === 1 ? "" : "s"}{" "}
+                      <span className="ml-2 inline-block rounded-full border bg-zinc-50 px-2 py-0.5">
+                        Expand
+                      </span>
+                    </div>
+                  </div>
+                </summary>
+
+                <div className="border-t px-5 pb-6 pt-6">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {/* LEFT: Stay + Activities */}
+                    <div className="space-y-4">
+                      {/* Accommodation */}
+                      <div className="rounded-2xl border bg-gradient-to-br from-zinc-50 to-white p-4">
+                        <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
+                          WHERE WE STAYED
+                        </div>
+
+                        {accommodationNames.length ? (
+                          <>
+                            <div className="mt-2 text-base font-semibold text-zinc-900">
+                              {accommodationNames.join(" • ")}
+                            </div>
+
+                            {accommodationTypes.length ? (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {accommodationTypes.map((t, idx) => (
+                                  <span
+                                    key={`acct-${idx}`}
+                                    className="rounded-full border bg-white px-2.5 py-1 text-xs text-zinc-700 shadow-sm"
+                                  >
+                                    {t}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+
+                            {accommodationLinks.length ? (
+                              <div className="mt-3 space-y-1">
+                                {accommodationLinks.slice(0, 2).map((href, idx) => (
+                                  <a
+                                    key={`accl-${idx}`}
+                                    href={href}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-800 underline underline-offset-4 hover:text-zinc-900"
+                                  >
+                                    View place <span aria-hidden>↗</span>
+                                  </a>
+                                ))}
+                              </div>
+                            ) : null}
+                          </>
+                        ) : (
+                          <div className="mt-2 text-sm text-zinc-500">
+                            Add an accommodation name in the post to show it here.
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Activities */}
+                      <div className="rounded-2xl border bg-white p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
+                            WHAT WE DID
+                          </div>
+                          <span className="rounded-full border bg-zinc-50 px-2 py-0.5 text-[11px] text-zinc-600">
+                            {activityTitles.length || 0} items
+                          </span>
+                        </div>
+
+                        {activityTitles.length ? (
+                          <>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {activityTitles.slice(0, 16).map((a, idx) => (
                                 <span
-                                  key={`acct-${idx}`}
-                                  className="rounded-full border bg-white px-2.5 py-1 text-xs text-zinc-700"
+                                  key={`act-${idx}`}
+                                  className="rounded-full border bg-zinc-50 px-2.5 py-1 text-xs text-zinc-700"
                                 >
-                                  {t}
+                                  {a}
                                 </span>
                               ))}
                             </div>
-                          ) : null}
 
-                          {accommodationLinks.length ? (
-                            <div className="mt-3 space-y-1">
-                              {accommodationLinks.slice(0, 2).map((href, idx) => (
-                                <a
-                                  key={`accl-${idx}`}
-                                  href={href}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="block text-sm text-zinc-700 underline underline-offset-4 hover:text-zinc-900"
-                                >
-                                  View place ↗
-                                </a>
-                              ))}
-                            </div>
-                          ) : null}
-                        </>
-                      ) : (
-                        <div className="mt-2 text-sm text-zinc-500">
-                          Add an accommodation name in the post to show it here.
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Activities */}
-                    <div className="rounded-2xl border bg-white p-4">
-                      <div className="text-[11px] font-semibold text-zinc-500">
-                        WHAT WE DID
-                      </div>
-
-                      {activityTitles.length ? (
-                        <>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {activityTitles.slice(0, 14).map((a, idx) => (
-                              <span key={`act-${idx}`} className="rounded-full border bg-zinc-50 px-2.5 py-1 text-xs text-zinc-700">
-                                {a}
-                              </span>
-                            ))}
-                          </div>
-
-                          {activityTitles.length > 14 ? (
-                            <div className="mt-2 text-xs text-zinc-500">
-                              +{activityTitles.length - 14} more
-                            </div>
-                          ) : null}
-
-                          {activityNotes.length ? (
-                            <div className="mt-4 space-y-2">
-                              {activityNotes.slice(0, 3).map((n, idx) => (
-                                <div
-                                  key={`note-${idx}`}
-                                  className="rounded-xl border bg-white px-3 py-2 text-sm text-zinc-700"
-                                >
-                                  {n}
-                                </div>
-                              ))}
-                            </div>
-                          ) : null}
-                        </>
-                      ) : (
-                        <div className="mt-2 text-sm text-zinc-500">
-                          Add activities in the post to show them here.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* RIGHT: Posts (secondary) */}
-                  <div className="rounded-2xl border bg-white p-4">
-                    <div className="text-[11px] font-semibold text-zinc-500">
-                      READ THE STORIES
-                    </div>
-
-                    <div className="mt-3 space-y-3">
-                      {items.map((p) => (
-                        <div
-                          key={p._id}
-                          className="flex items-start justify-between gap-3 rounded-xl border bg-zinc-50 px-3 py-3"
-                        >
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-semibold text-zinc-900">
-                              {p.title}
-                            </div>
-                            {p.excerpt ? (
-                              <div className="mt-1 line-clamp-2 text-sm text-zinc-600">
-                                {p.excerpt}
+                            {activityTitles.length > 16 ? (
+                              <div className="mt-2 text-xs text-zinc-500">
+                                +{activityTitles.length - 16} more
                               </div>
                             ) : null}
+
+                            {activityNotes.length ? (
+                              <div className="mt-4 space-y-2">
+                                {activityNotes.slice(0, 3).map((n, idx) => (
+                                  <div
+                                    key={`note-${idx}`}
+                                    className="rounded-xl border bg-zinc-50 px-3 py-2 text-sm text-zinc-700 whitespace-pre-wrap break-words"
+                                  >
+                                    {/* clamp long notes so they don’t blow up the layout */}
+                                    <div className="line-clamp-3">{n}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+                          </>
+                        ) : (
+                          <div className="mt-2 text-sm text-zinc-500">
+                            Add activities in the post to show them here.
                           </div>
+                        )}
+                      </div>
+                    </div>
 
-                          <Link
-                            href={`/posts/${p.slug}`}
-                            className="shrink-0 rounded-full border bg-white px-3 py-1 text-xs text-zinc-700 hover:text-zinc-900"
+                    {/* RIGHT: Posts (secondary) */}
+                    <div className="rounded-2xl border bg-gradient-to-b from-white to-zinc-50 p-4">
+                      <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
+                        READ THE STORIES
+                      </div>
+
+                      <div className="mt-3 space-y-3">
+                        {items.map((p) => (
+                          <div
+                            key={p._id}
+                            className="flex items-start justify-between gap-3 rounded-xl border bg-white px-3 py-3 shadow-sm"
                           >
-                            Open →
-                          </Link>
-                        </div>
-                      ))}
-                    </div>
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-semibold text-zinc-900">
+                                {p.title}
+                              </div>
+                              {p.excerpt ? (
+                                <div className="mt-1 line-clamp-2 text-sm text-zinc-600">
+                                  {p.excerpt}
+                                </div>
+                              ) : null}
+                            </div>
 
-                    {/* Optional: keep cards if you still want visuals (commented out)
-                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                      {items.map((p) => (
-                        <PostCard
-                          key={p._id}
-                          title={p.title}
-                          slug={p.slug}
-                          excerpt={p.excerpt}
-                          coverImage={p.coverImage}
-                          publishedAt={p.publishedAt}
-                          country={p.country}
-                        />
-                      ))}
+                            <Link
+                              href={`/posts/${p.slug}`}
+                              className="shrink-0 rounded-full border bg-[#414141] px-3 py-1 text-xs font-semibold text-[#f5de88] hover:opacity-90"
+                            >
+                              Open →
+                            </Link>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    */}
                   </div>
                 </div>
-              </div>
-            </details>
-          );
-        })}
+              </details>
+            );
+          })}
+        </div>
       </div>
     </section>
   );
 }
+
 
 export function HomeView({ posts }: { posts: Post[] }) {
   const [mode, setMode] = useState<Mode>("latest");
