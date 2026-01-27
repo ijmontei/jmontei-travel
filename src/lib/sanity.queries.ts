@@ -1,22 +1,51 @@
 export const POSTS_QUERY = `*[_type == "post" && defined(slug.current)] | order(publishedAt desc){
-    _id,
+  _id,
+  title,
+  "slug": slug.current,
+  publishedAt,
+  excerpt,
+  coverImage,
+  country,
+  city,
+  accommodation{
+    name,
+    type,
+    address,
+    link,
+    notes
+  },
+  activities[]{
     title,
-    "slug": slug.current,
-    publishedAt,
-    excerpt,
-    coverImage,
-    country
-  }`;
-  
-  export const POST_BY_SLUG_QUERY = `*[_type == "post" && slug.current == $slug][0]{
-    _id,
+    timeOfDay,
+    category,
+    link,
+    notes
+  }
+}`;
+
+export const POST_BY_SLUG_QUERY = `*[_type == "post" && slug.current == $slug][0]{
+  _id,
+  title,
+  "slug": slug.current,
+  publishedAt,
+  excerpt,
+  coverImage,
+  country,
+  city,
+  accommodation{
+    name,
+    type,
+    address,
+    link,
+    notes
+  },
+  activities[]{
     title,
-    "slug": slug.current,
-    publishedAt,
-    excerpt,
-    coverImage,
-    country,
-    body,
-    gallery
-  }`;
-  
+    timeOfDay,
+    category,
+    link,
+    notes
+  },
+  body,
+  gallery
+}`;

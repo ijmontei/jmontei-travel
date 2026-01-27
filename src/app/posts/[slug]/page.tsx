@@ -6,10 +6,40 @@ import { urlForImage } from "@/lib/sanity.image";
 import { PortableTextRenderer } from "@/components/PortableTextRenderer";
 import { GalleryCarousel } from "@/components/GalleryCarousel";
 
-
 type PageProps = {
-  // Your deployment showed params is a Promise — this is the critical fix.
   params: Promise<{ slug: string }>;
+};
+
+// Keep these types lightweight and permissive so the page doesn't break
+type Accommodation = {
+  name?: string;
+  type?: string;
+  address?: string;
+  link?: string;
+  notes?: string;
+};
+
+type Activity = {
+  title?: string;
+  timeOfDay?: string; // "Morning" | "Afternoon" | "Evening" | etc.
+  category?: string;
+  link?: string;
+  notes?: string;
+};
+
+type Post = {
+  _id: string;
+  title: string;
+  slug: string;
+  publishedAt?: string;
+  excerpt?: string;
+  coverImage?: any;
+  country?: string;
+  city?: string;
+  accommodation?: Accommodation;
+  activities?: Activity[];
+  body?: any;
+  gallery?: any[];
 };
 
 const POST_BY_SLUG_QUERY = /* groq */ `
@@ -21,23 +51,63 @@ const POST_BY_SLUG_QUERY = /* groq */ `
   excerpt,
   coverImage,
   country,
+  city,
+  accommodation{
+    name,
+    type,
+    address,
+    link,
+    notes
+  },
+  activities[]{
+    title,
+    timeOfDay,
+    category,
+    link,
+    notes
+  },
   body,
   gallery
 }
 `;
 
+function formatDate(d?: string) {
+  if (!d) return null;
+  const date = new Date(d);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+function cleanLabel(parts: Array<string | undefined | null>) {
+  return parts.filter(Boolean).join(" · ");
+}
+
 export default async function PostPage({ params }: PageProps) {
   const { slug } = await params;
-
   if (!slug) notFound();
 
-  const post = await sanityClient.fetch(POST_BY_SLUG_QUERY, { slug });
-
+  const post = (await sanityClient.fetch(POST_BY_SLUG_QUERY, { slug })) as Post | null;
   if (!post) notFound();
 
   const coverUrl = post.coverImage
-    ? urlForImage(post.coverImage).width(1800).height(900).fit("crop").auto("format").url()
+    ? urlForImage(post.coverImage)
+        .width(1800)
+        .height(900)
+        .fit("crop")
+        .auto("format")
+        .url()
     : null;
+
+  const metaLine = cleanLabel([
+    post.country,
+    post.city,
+    formatDate(post.publishedAt) ?? undefined,
+  ]);
+
+  const hasItineraryDetails =
+    Boolean(post.city) ||
+    Boolean(post.accommodation?.name) ||
+    Boolean(post.activities?.length);
 
   return (
     <article className="max-w-3xl">
@@ -46,14 +116,10 @@ export default async function PostPage({ params }: PageProps) {
           ← Back
         </Link>
 
-        <div className="mt-3 text-sm text-zinc-500">
-          {post.country ? <span>{post.country} · </span> : null}
-          {post.publishedAt ? (
-            <span>{new Date(post.publishedAt).toLocaleDateString()}</span>
-          ) : null}
-        </div>
+        {metaLine ? <div className="mt-3 text-sm text-zinc-500">{metaLine}</div> : null}
 
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">{post.title}</h1>
+
         {post.excerpt ? (
           <p className="mt-3 text-zinc-600 leading-relaxed">{post.excerpt}</p>
         ) : null}
@@ -65,6 +131,99 @@ export default async function PostPage({ params }: PageProps) {
             <Image src={coverUrl} alt={post.title} fill className="object-cover" sizes="100vw" />
           </div>
         </div>
+      ) : null}
+
+      {/* Itinerary details (pulled from post fields) */}
+      {hasItineraryDetails ? (
+        <section className="mb-8 rounded-2xl border bg-white p-4 sm:p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold tracking-tight text-zinc-900">
+              Itinerary details
+            </h2>
+          </div>
+
+          <div className="mt-3 space-y-4">
+            {/* Accommodation */}
+            {post.accommodation?.name ? (
+              <div className="rounded-xl bg-zinc-50 p-3">
+                <div className="text-xs font-semibold text-zinc-500">ACCOMMODATION</div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <div className="font-medium text-zinc-900">{post.accommodation.name}</div>
+                  {post.accommodation.type ? (
+                    <span className="text-xs rounded-full border bg-white px-2 py-0.5 text-zinc-600">
+                      {post.accommodation.type}
+                    </span>
+                  ) : null}
+                </div>
+
+                {post.accommodation.address ? (
+                  <div className="mt-1 text-sm text-zinc-600">{post.accommodation.address}</div>
+                ) : null}
+
+                {post.accommodation.link ? (
+                  <div className="mt-2">
+                    <a
+                      href={post.accommodation.link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sm text-zinc-700 underline underline-offset-4 hover:text-zinc-900"
+                    >
+                      View place ↗
+                    </a>
+                  </div>
+                ) : null}
+
+                {post.accommodation.notes ? (
+                  <div className="mt-2 text-sm text-zinc-600">{post.accommodation.notes}</div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {/* Activities */}
+            {post.activities?.length ? (
+              <div>
+                <div className="text-xs font-semibold text-zinc-500">ACTIVITIES</div>
+                <ul className="mt-2 space-y-2">
+                  {post.activities.map((a, idx) => {
+                    const label = cleanLabel([a.timeOfDay, a.category]);
+                    return (
+                      <li
+                        key={`${post._id}-activity-${idx}`}
+                        className="rounded-xl border bg-white p-3"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="font-medium text-zinc-900">
+                            {a.title ?? "Activity"}
+                          </div>
+                          {label ? (
+                            <span className="text-xs rounded-full border bg-zinc-50 px-2 py-0.5 text-zinc-600">
+                              {label}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        {a.notes ? <div className="mt-1 text-sm text-zinc-600">{a.notes}</div> : null}
+
+                        {a.link ? (
+                          <div className="mt-2">
+                            <a
+                              href={a.link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-sm text-zinc-700 underline underline-offset-4 hover:text-zinc-900"
+                            >
+                              Link ↗
+                            </a>
+                          </div>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        </section>
       ) : null}
 
       <PortableTextRenderer value={post.body} />
