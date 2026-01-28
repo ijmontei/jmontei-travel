@@ -237,7 +237,7 @@ function TravelRow({
       {/* thin dashed line */}
       <div className="absolute left-[14px] top-0 h-full w-px border-l border-dashed border-zinc-300/70" />
 
-      <div className="flex items-center gap-3 rounded-xl border bg-white/60 px-3 py-2 text-sm shadow-sm backdrop-blur">
+      <div className="flex items-center gap-3 rounded-xl border bg-zinc-50/70 px-3 py-2 text-sm shadow-sm">
         <span
           className="inline-flex h-8 w-8 items-center justify-center rounded-full border"
           style={{
@@ -534,7 +534,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
   }, [filtered]);
 
   return (
-    <section className="mt-6">
+    <section className="mt-6 rounded-3xl border bg-gradient-to-b from-white to-zinc-50/70 p-4 sm:p-5">
       <div className="flex flex-col gap-2">
         <h3 className="text-xl font-semibold tracking-tight">Itinerary</h3>
       </div>
@@ -679,7 +679,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                 ) : null}
 
                 {/* Country pill */}
-                <details className="group rounded-2xl border bg-white shadow-sm overflow-hidden">
+                <details className="group rounded-2xl border bg-white/70 backdrop-blur shadow-sm overflow-hidden">
                   <summary className="cursor-pointer list-none px-5 py-4">
                     <div className="flex items-center gap-3">
                       <AccentDot hue={cg.hue} />
@@ -730,7 +730,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                           {/* Transit break (compact) */}
                           {showTransit ? <TravelRow kind="transit" hue={cg.hue} title={`${prevCity} → ${cityGroup.city}`} subtitle={cg.country} /> : null}
 
-                          <details className="group/city rounded-2xl border bg-white shadow-sm overflow-hidden">
+                          <details className="group/city rounded-2xl border bg-white/70 backdrop-blur shadow-sm overflow-hidden">
                             <summary className="cursor-pointer list-none px-4 py-4">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
@@ -789,8 +789,14 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                                         return (
                                           <div
                                             key={`acc-group-${gi}`}
-                                            className="rounded-2xl border bg-white/60 shadow-sm overflow-hidden"
+                                            className="relative overflow-hidden rounded-2xl border bg-white/60 shadow-sm"
                                           >
+                                            <div
+                                              className="absolute left-0 top-0 h-full w-1"
+                                              style={{ background: `hsla(${cg.hue}, 85%, 45%, 0.7)` }}
+                                              aria-hidden
+                                            />
+                                            <div className="pl-3"> 
                                             {/* Post rows inside ONE group card */}
                                             <div className="divide-y">
                                               {posts.map((p) => {
@@ -798,7 +804,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                                                 return (
                                                   <div
                                                     key={p._id}
-                                                    className="flex items-center justify-between gap-4 px-4 py-4"
+                                                    className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-white/50 transition"
                                                   >
                                                     <div className="min-w-0">
                                                       <div className="truncate text-sm font-semibold text-zinc-900">
@@ -840,6 +846,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                                                 </a>
                                               </div>
                                             ) : null}
+                                          </div>
                                           </div>
                                         );
                                       })}
