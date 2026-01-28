@@ -212,7 +212,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
 
   const [country, setCountry] = useState<string>("All");
   const [city, setCity] = useState<string>("All");
-  const [activity, setActivity] = useState<string>("All");
   const [dateFrom, setDateFrom] = useState<string>(""); // YYYY-MM-DD
   const [dateTo, setDateTo] = useState<string>(""); // YYYY-MM-DD
   const [q, setQ] = useState<string>("");
@@ -235,13 +234,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
     );
   }, [posts, country]);
 
-  const activityOptions = useMemo(() => {
-    const all = posts.flatMap((p: any) =>
-      (p.activities ?? []).map((a: any) => (a?.title || "").trim())
-    );
-    return ["All", ...uniq(all.filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b));
-  }, [posts]);
-
   const filtered = useMemo(() => {
     return posts.filter((p: any) => {
       const dt = safeDate(p.publishedAt);
@@ -249,13 +241,9 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
 
       const ctry = (p.country || "").trim();
       const cty = (p.city || "").trim();
-      const acts: string[] = (p.activities ?? [])
-        .map((a: any) => (a?.title || "").trim())
-        .filter(Boolean);
 
       if (country !== "All" && ctry !== country) return false;
       if (city !== "All" && cty !== city) return false;
-      if (activity !== "All" && !acts.includes(activity)) return false;
 
       if (dateFrom) {
         const from = new Date(`${dateFrom}T00:00:00`);
@@ -267,7 +255,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
       }
 
       if (q.trim()) {
-        const hay = [p.title, p.excerpt, ctry, cty, ...acts]
+        const hay = [p.title, p.excerpt, ctry, cty]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
@@ -276,7 +264,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
 
       return true;
     });
-  }, [posts, country, city, activity, dateFrom, dateTo, q]);
+  }, [posts, country, city, dateFrom, dateTo, q]);
 
   // Group filtered posts by day (DESC = most recent at top)
   const byDay = useMemo(() => {
@@ -297,7 +285,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
   const hasActiveFilters =
     country !== "All" ||
     city !== "All" ||
-    activity !== "All" ||
     Boolean(dateFrom) ||
     Boolean(dateTo) ||
     Boolean(q.trim());
@@ -306,7 +293,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
     setQ("");
     setCountry("All");
     setCity("All");
-    setActivity("All");
     setDateFrom("");
     setDateTo("");
   };
@@ -322,7 +308,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
           </span>
         </h3>
         <p className="text-sm text-zinc-500">
-          Click “Filters” to narrow by country, city, date range, activity, or keyword.
+          Click “Filters” to narrow by country, city, date range, or keyword.
         </p>
       </div>
 
@@ -370,7 +356,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
             {q.trim() ? <Pill>Search: “{q.trim()}”</Pill> : null}
             {country !== "All" ? <Pill>Country: {country}</Pill> : null}
             {city !== "All" ? <Pill>City: {city}</Pill> : null}
-            {activity !== "All" ? <Pill>Activity: {activity}</Pill> : null}
             {dateFrom ? <Pill>From: {dateFrom}</Pill> : null}
             {dateTo ? <Pill>To: {dateTo}</Pill> : null}
 
@@ -399,7 +384,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                 <input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder="Search titles, excerpts, cities, activities..."
+                  placeholder="Search titles, excerpts, cities..."
                   className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
                 />
               </label>
@@ -434,23 +419,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                   className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
                 >
                   {cityOptions.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
-                  ACTIVITY
-                </div>
-                <select
-                  value={activity}
-                  onChange={(e) => setActivity(e.target.value)}
-                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
-                >
-                  {activityOptions.map((o) => (
                     <option key={o} value={o}>
                       {o}
                     </option>
@@ -522,14 +490,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                 items.map((p: any) => p.accommodation?.link).filter(Boolean) as string[]
               );
 
-              const activityObjs = items.flatMap((p: any) => (p.activities ?? []) as any[]);
-              const activityTitles = uniq(
-                activityObjs.map((a) => a?.title).filter(Boolean) as string[]
-              );
-              const activityNotes = uniq(
-                activityObjs.map((a) => a?.notes).filter(Boolean) as string[]
-              );
-
               const prev = idx > 0 ? byDay[idx - 1] : null;
 
               const prevCountry = prev ? primaryCountry(prev.items) : null;
@@ -552,7 +512,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
 
               const showTravelDivider = isNewCountry || isNewCitySameCountry;
 
-              // High impact / low clutter: one consistent accent per country (tags + dots + divider)
               const hue = accentHueFromCountry(curCountry);
 
               return (
@@ -565,7 +524,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                       </div>
 
                       <div className="mb-3 rounded-2xl border bg-white/80 backdrop-blur px-4 py-3 shadow-sm relative overflow-hidden">
-                        {/* subtle colored wash (no extra “block”, just texture) */}
                         <div
                           className="pointer-events-none absolute inset-0 opacity-40"
                           style={{
@@ -575,7 +533,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                             )`,
                           }}
                         />
-                        {/* ticket perforation feel (very subtle) */}
                         <div className="pointer-events-none absolute left-0 top-1/2 h-px w-full border-t border-dashed border-zinc-200/90" />
 
                         <div className="relative flex items-center gap-3">
@@ -628,7 +585,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
 
                   {/* Day card */}
                   <details className="group relative rounded-2xl border bg-white shadow-sm transition hover:shadow-md overflow-hidden">
-                    {/* low clutter color: faint “wash” only */}
                     <div
                       className="pointer-events-none absolute inset-0 opacity-45"
                       style={{
@@ -649,26 +605,24 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                           </div>
 
                           <div className="mt-3 flex flex-wrap gap-2">
-                            {/* High impact / low clutter: location tags share the same country accent */}
                             {locTags.slice(0, 4).map((t, i) => (
                               <AccentTag key={`loc-${i}`} hue={hue}>
                                 {t}
                               </AccentTag>
                             ))}
-
-                            {activityTitles.length ? (
-                              <span className="rounded-full border bg-[#414141] px-2.5 py-1 text-xs font-semibold text-[#f5de88] shadow-sm">
-                                {activityTitles.length} activit
-                                {activityTitles.length === 1 ? "y" : "ies"}
-                              </span>
-                            ) : null}
                           </div>
                         </div>
 
                         <div className="text-xs text-zinc-500">
                           {items.length} post{items.length === 1 ? "" : "s"}{" "}
-                          <span className="ml-2 inline-block rounded-full border bg-zinc-50 px-2 py-0.5">
-                            Expand
+                          <span className="ml-2 inline-flex items-center gap-1 rounded-full border bg-zinc-50 px-2 py-0.5">
+                            <span>Expand</span>
+                            <span
+                              className="transition-transform duration-200 group-open:rotate-180"
+                              aria-hidden
+                            >
+                              ▾
+                            </span>
                           </span>
                         </div>
                       </div>
@@ -676,9 +630,8 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
 
                     <div className="relative border-t px-5 pb-6 pt-6">
                       <div className="grid gap-4 md:grid-cols-2">
-                        {/* LEFT: Stay + Activities */}
+                        {/* LEFT: Stay */}
                         <div className="space-y-4">
-                          {/* Accommodation */}
                           <div className="rounded-2xl border bg-gradient-to-br from-zinc-50 to-white p-4">
                             <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
                               WHERE WE STAYED
@@ -725,59 +678,9 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                               </div>
                             )}
                           </div>
-
-                          {/* Activities */}
-                          <div className="rounded-2xl border bg-white p-4">
-                            <div className="flex items-center justify-between">
-                              <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
-                                WHAT WE DID
-                              </div>
-                              <span className="rounded-full border bg-zinc-50 px-2 py-0.5 text-[11px] text-zinc-600">
-                                {activityTitles.length || 0} items
-                              </span>
-                            </div>
-
-                            {activityTitles.length ? (
-                              <>
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  {activityTitles.slice(0, 16).map((a, i) => (
-                                    <span
-                                      key={`act-${i}`}
-                                      className="rounded-full border bg-zinc-50 px-2.5 py-1 text-xs text-zinc-700"
-                                    >
-                                      {a}
-                                    </span>
-                                  ))}
-                                </div>
-
-                                {activityTitles.length > 16 ? (
-                                  <div className="mt-2 text-xs text-zinc-500">
-                                    +{activityTitles.length - 16} more
-                                  </div>
-                                ) : null}
-
-                                {activityNotes.length ? (
-                                  <div className="mt-4 space-y-2">
-                                    {activityNotes.slice(0, 3).map((n, i) => (
-                                      <div
-                                        key={`note-${i}`}
-                                        className="rounded-xl border bg-zinc-50 px-3 py-2 text-sm text-zinc-700 whitespace-pre-wrap break-words"
-                                      >
-                                        <div className="line-clamp-3">{n}</div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : null}
-                              </>
-                            ) : (
-                              <div className="mt-2 text-sm text-zinc-500">
-                                Add activities in the post to show them here.
-                              </div>
-                            )}
-                          </div>
                         </div>
 
-                        {/* RIGHT: Posts (secondary) */}
+                        {/* RIGHT: Posts */}
                         <div className="rounded-2xl border bg-gradient-to-b from-white to-zinc-50 p-4">
                           <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
                             READ THE STORIES
@@ -870,7 +773,7 @@ export function HomeView({ posts }: { posts: Post[] }) {
   }, [posts]);
 
   return (
-    <main className="min-h-screen text-[hsl(var(--]()text))]">
+    <main className="min-h-screen text-[hsl(var(--text))]">
       <div className="mx-auto max-w-5xl px-5 py-10">
         {/* HERO SECTION */}
         <header className="mb-2">
