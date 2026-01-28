@@ -739,7 +739,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                                                 rel="noreferrer"
                                                 className="shrink-0 rounded-full border bg-[#414141] px-3 py-1 text-xs font-semibold text-[#f5de88] hover:opacity-90"
                                               >
-                                                See accommodation ↗
+                                                visit ↗
                                               </a>
                                             ) : (
                                               <span className="shrink-0 rounded-full border bg-white px-3 py-1 text-xs font-semibold text-zinc-400">
