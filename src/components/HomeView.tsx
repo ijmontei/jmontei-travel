@@ -89,6 +89,15 @@ function uniq<T>(arr: T[]) {
   return Array.from(new Set(arr));
 }
 
+function hueFromString(input: string) {
+  let h = 0;
+  for (let i = 0; i < input.length; i++) h = (h * 31 + input.charCodeAt(i)) % 360;
+  return h;
+}
+function accentHueFromCountry(country?: string | null) {
+  return hueFromString((country || "unknown").toLowerCase());
+}
+
 function PlaneIcon({ className = "" }: { className?: string }) {
   return (
     <svg
@@ -157,6 +166,40 @@ function primaryCity(items: Post[]) {
 function Pill({ children }: { children: React.ReactNode }) {
   return (
     <span className="rounded-full border bg-white/70 px-2.5 py-1 text-xs text-zinc-700 shadow-sm">
+      {children}
+    </span>
+  );
+}
+
+function AccentDot({ hue }: { hue: number }) {
+  return (
+    <span
+      className="inline-block h-2.5 w-2.5 rounded-full"
+      style={{
+        background: `radial-gradient(circle at 30% 30%, hsla(${hue}, 85%, 66%, 1), hsla(${hue}, 85%, 42%, 1))`,
+        boxShadow: `0 0 0 3px hsla(${hue}, 85%, 60%, 0.14), 0 10px 22px hsla(${hue}, 85%, 45%, 0.12)`,
+      }}
+      aria-hidden="true"
+    />
+  );
+}
+
+function AccentTag({
+  hue,
+  children,
+}: {
+  hue: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      className="rounded-full border px-2.5 py-1 text-xs shadow-sm"
+      style={{
+        background: `linear-gradient(135deg, hsla(${hue}, 70%, 92%, 0.92), hsla(${hue}, 70%, 96%, 0.92))`,
+        borderColor: `hsla(${hue}, 60%, 55%, 0.22)`,
+        color: `hsla(${hue}, 30%, 18%, 0.95)`,
+      }}
+    >
       {children}
     </span>
   );
@@ -279,191 +322,179 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
           </span>
         </h3>
         <p className="text-sm text-zinc-500">
-          Click “Search & Filters” to narrow by country, city, date range, activity, or keyword.
+          Click “Filters” to narrow by country, city, date range, activity, or keyword.
         </p>
       </div>
 
       {/* Filters: compact pill + expandable panel */}
-<div className="mt-5">
-  <div className="flex flex-wrap items-center gap-2">
-    {/* Toggle pill */}
-    <button
-      type="button"
-      onClick={() => setFiltersOpen((v) => !v)}
-      className={[
-        "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold shadow-sm transition",
-        filtersOpen
-          ? "bg-[#414141] text-[#f5de88]"
-          : "bg-white/70 text-zinc-800 hover:bg-white",
-      ].join(" ")}
-      aria-expanded={filtersOpen}
-      aria-controls="itinerary-filters"
-      title="Search & Filters"
-    >
-      {/* tiny “sliders” icon */}
-      <svg
-        viewBox="0 0 24 24"
-        className="h-4 w-4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M4 21v-7" />
-        <path d="M4 10V3" />
-        <path d="M12 21v-9" />
-        <path d="M12 8V3" />
-        <path d="M20 21v-5" />
-        <path d="M20 12V3" />
-        <path d="M2 14h4" />
-        <path d="M10 8h4" />
-        <path d="M18 16h4" />
-      </svg>
-
-      {filtersOpen ? "Close" : "Filters"}
-    </button>
-
-    {/* Active filter chips (only show when something is active) */}
-    <div className="flex flex-wrap items-center gap-2">
-      {q.trim() ? <Pill>Search: “{q.trim()}”</Pill> : null}
-      {country !== "All" ? <Pill>Country: {country}</Pill> : null}
-      {city !== "All" ? <Pill>City: {city}</Pill> : null}
-      {activity !== "All" ? <Pill>Activity: {activity}</Pill> : null}
-      {dateFrom ? <Pill>From: {dateFrom}</Pill> : null}
-      {dateTo ? <Pill>To: {dateTo}</Pill> : null}
-
-      {hasActiveFilters ? (
-        <button
-          type="button"
-          onClick={clearFilters}
-          className="rounded-full border bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
-        >
-          Clear
-        </button>
-      ) : null}
-    </div>
-  </div>
-
-  {/* Expandable filter panel */}
-  {filtersOpen ? (
-    <div
-      id="itinerary-filters"
-      className="mt-3 rounded-2xl border bg-white/70 backdrop-blur p-4 shadow-sm"
-    >
-      <div className="grid gap-3 md:grid-cols-6">
-        {/* Keyword */}
-        <label className="md:col-span-2">
-          <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
-            KEYWORD
-          </div>
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search titles, excerpts, cities, activities..."
-            className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
-          />
-        </label>
-
-        {/* Country */}
-        <label>
-          <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
-            COUNTRY
-          </div>
-          <select
-            value={country}
-            onChange={(e) => {
-              setCountry(e.target.value);
-              setCity("All");
-            }}
-            className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
-          >
-            {countryOptions.map((o) => (
-              <option key={o} value={o}>
-                {o}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* City */}
-        <label>
-          <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
-            CITY
-          </div>
-          <select
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
-          >
-            {cityOptions.map((o) => (
-              <option key={o} value={o}>
-                {o}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* Activity */}
-        <label>
-          <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
-            ACTIVITY
-          </div>
-          <select
-            value={activity}
-            onChange={(e) => setActivity(e.target.value)}
-            className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
-          >
-            {activityOptions.map((o) => (
-              <option key={o} value={o}>
-                {o}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* Date From */}
-        <label>
-          <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
-            DATE FROM
-          </div>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
-          />
-        </label>
-
-        {/* Date To */}
-        <label>
-          <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
-            DATE TO
-          </div>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
-          />
-        </label>
-
-        {/* Clear button */}
-        <div className="md:col-span-6 flex justify-end">
+      <div className="mt-5">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={clearFilters}
-            className="rounded-xl border bg-[#414141] px-4 py-2 text-sm font-semibold text-[#f5de88] hover:opacity-90"
+            onClick={() => setFiltersOpen((v) => !v)}
+            className={[
+              "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold shadow-sm transition",
+              filtersOpen
+                ? "bg-[#414141] text-[#f5de88]"
+                : "bg-white/70 text-zinc-800 hover:bg-white",
+            ].join(" ")}
+            aria-expanded={filtersOpen}
+            aria-controls="itinerary-filters"
+            title="Search & Filters"
           >
-            Clear all filters
-          </button>
-        </div>
-      </div>
-    </div>
-  ) : null}
-</div>
+            <svg
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M4 21v-7" />
+              <path d="M4 10V3" />
+              <path d="M12 21v-9" />
+              <path d="M12 8V3" />
+              <path d="M20 21v-5" />
+              <path d="M20 12V3" />
+              <path d="M2 14h4" />
+              <path d="M10 8h4" />
+              <path d="M18 16h4" />
+            </svg>
 
+            {filtersOpen ? "Close" : "Filters"}
+          </button>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {q.trim() ? <Pill>Search: “{q.trim()}”</Pill> : null}
+            {country !== "All" ? <Pill>Country: {country}</Pill> : null}
+            {city !== "All" ? <Pill>City: {city}</Pill> : null}
+            {activity !== "All" ? <Pill>Activity: {activity}</Pill> : null}
+            {dateFrom ? <Pill>From: {dateFrom}</Pill> : null}
+            {dateTo ? <Pill>To: {dateTo}</Pill> : null}
+
+            {hasActiveFilters ? (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="rounded-full border bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {filtersOpen ? (
+          <div
+            id="itinerary-filters"
+            className="mt-3 rounded-2xl border bg-white/70 backdrop-blur p-4 shadow-sm"
+          >
+            <div className="grid gap-3 md:grid-cols-6">
+              <label className="md:col-span-2">
+                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
+                  KEYWORD
+                </div>
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Search titles, excerpts, cities, activities..."
+                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                />
+              </label>
+
+              <label>
+                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
+                  COUNTRY
+                </div>
+                <select
+                  value={country}
+                  onChange={(e) => {
+                    setCountry(e.target.value);
+                    setCity("All");
+                  }}
+                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                >
+                  {countryOptions.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
+                  CITY
+                </div>
+                <select
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                >
+                  {cityOptions.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
+                  ACTIVITY
+                </div>
+                <select
+                  value={activity}
+                  onChange={(e) => setActivity(e.target.value)}
+                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                >
+                  {activityOptions.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
+                  DATE FROM
+                </div>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                />
+              </label>
+
+              <label>
+                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
+                  DATE TO
+                </div>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                />
+              </label>
+
+              <div className="md:col-span-6 flex justify-end">
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="rounded-xl border bg-[#414141] px-4 py-2 text-sm font-semibold text-[#f5de88] hover:opacity-90"
+                >
+                  Clear all filters
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       {/* Empty state */}
       {!byDay.length ? (
@@ -472,8 +503,10 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
         </div>
       ) : (
         <div className="mt-6 relative">
-          {/* vertical line */}
-          <div className="pointer-events-none absolute left-[14px] top-0 h-full w-px bg-gradient-to-b from-transparent via-zinc-300 to-transparent" />
+          {/* High impact / low clutter: upgraded “route” line */}
+          <div className="pointer-events-none absolute left-[14px] top-0 h-full w-px bg-gradient-to-b from-transparent via-zinc-300/90 to-transparent" />
+          <div className="pointer-events-none absolute left-[14px] top-0 h-full w-[10px] -translate-x-1/2 bg-gradient-to-b from-transparent via-amber-200/18 to-transparent blur-md" />
+          <div className="pointer-events-none absolute left-[14px] top-0 h-full w-px border-l border-dashed border-zinc-300/70" />
 
           <div className="space-y-5">
             {byDay.map(({ day, items }, idx) => {
@@ -497,8 +530,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                 activityObjs.map((a) => a?.notes).filter(Boolean) as string[]
               );
 
-              // ---- Travel divider logic (between days) ----
-              // byDay is DESC (newest->oldest). prev is the *newer* day above this one.
               const prev = idx > 0 ? byDay[idx - 1] : null;
 
               const prevCountry = prev ? primaryCountry(prev.items) : null;
@@ -521,16 +552,41 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
 
               const showTravelDivider = isNewCountry || isNewCitySameCountry;
 
+              // High impact / low clutter: one consistent accent per country (tags + dots + divider)
+              const hue = accentHueFromCountry(curCountry);
+
               return (
                 <div key={yyyyMmDd(day)}>
                   {/* Travel divider */}
                   {showTravelDivider ? (
                     <div className="relative pl-12">
-                      <div className="absolute left-[8px] top-2 h-3 w-3 rounded-full border bg-white shadow-sm" />
+                      <div className="absolute left-[8px] top-2">
+                        <AccentDot hue={hue} />
+                      </div>
 
-                      <div className="mb-3 rounded-2xl border bg-gradient-to-r from-white via-zinc-50 to-white px-4 py-3 shadow-sm">
-                        <div className="flex items-center gap-3">
-                          <span className="rounded-full border bg-[#414141] p-2 text-[#f5de88] shadow-sm">
+                      <div className="mb-3 rounded-2xl border bg-white/80 backdrop-blur px-4 py-3 shadow-sm relative overflow-hidden">
+                        {/* subtle colored wash (no extra “block”, just texture) */}
+                        <div
+                          className="pointer-events-none absolute inset-0 opacity-40"
+                          style={{
+                            background: `linear-gradient(90deg,
+                              hsla(${accentHueFromCountry(prevCountry || "")}, 80%, 65%, 0.10),
+                              hsla(${hue}, 80%, 65%, 0.10)
+                            )`,
+                          }}
+                        />
+                        {/* ticket perforation feel (very subtle) */}
+                        <div className="pointer-events-none absolute left-0 top-1/2 h-px w-full border-t border-dashed border-zinc-200/90" />
+
+                        <div className="relative flex items-center gap-3">
+                          <span
+                            className="rounded-full border p-2 shadow-sm"
+                            style={{
+                              background: `radial-gradient(circle at 30% 30%, hsla(${hue}, 85%, 66%, 0.92), hsla(${hue}, 85%, 45%, 0.92))`,
+                              borderColor: `hsla(${hue}, 60%, 55%, 0.25)`,
+                              color: "white",
+                            }}
+                          >
                             {isNewCountry ? (
                               <PlaneIcon className="h-4 w-4" />
                             ) : (
@@ -571,30 +627,37 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                   ) : null}
 
                   {/* Day card */}
-                  <details className="group relative rounded-2xl border bg-white shadow-sm transition hover:shadow-md">
-                    {/* timeline dot */}
-                    <div className="absolute left-[8px] top-6 h-3 w-3 rounded-full border bg-white shadow-sm" />
+                  <details className="group relative rounded-2xl border bg-white shadow-sm transition hover:shadow-md overflow-hidden">
+                    {/* low clutter color: faint “wash” only */}
+                    <div
+                      className="pointer-events-none absolute inset-0 opacity-45"
+                      style={{
+                        background: `radial-gradient(circle at 12% 18%, hsla(${hue}, 85%, 65%, 0.14), transparent 55%),
+                                     radial-gradient(circle at 88% 30%, hsla(${hue}, 85%, 55%, 0.10), transparent 60%)`,
+                      }}
+                    />
 
-                    <summary className="cursor-pointer list-none px-5 py-5 pl-12">
+                    <div className="absolute left-[8px] top-6">
+                      <AccentDot hue={hue} />
+                    </div>
+
+                    <summary className="relative cursor-pointer list-none px-5 py-5 pl-12">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <div className="text-base font-semibold tracking-tight text-zinc-900">
                             {formatDayLabel(day)}
                           </div>
 
-                          {/* Tags only (no subtitle) */}
                           <div className="mt-3 flex flex-wrap gap-2">
+                            {/* High impact / low clutter: location tags share the same country accent */}
                             {locTags.slice(0, 4).map((t, i) => (
-                              <span
-                                key={`loc-${i}`}
-                                className="rounded-full border bg-zinc-50 px-2.5 py-1 text-xs text-zinc-700"
-                              >
+                              <AccentTag key={`loc-${i}`} hue={hue}>
                                 {t}
-                              </span>
+                              </AccentTag>
                             ))}
 
                             {activityTitles.length ? (
-                              <span className="rounded-full border bg-[#414141] px-2.5 py-1 text-xs font-semibold text-[#f5de88]">
+                              <span className="rounded-full border bg-[#414141] px-2.5 py-1 text-xs font-semibold text-[#f5de88] shadow-sm">
                                 {activityTitles.length} activit
                                 {activityTitles.length === 1 ? "y" : "ies"}
                               </span>
@@ -611,7 +674,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                       </div>
                     </summary>
 
-                    <div className="border-t px-5 pb-6 pt-6">
+                    <div className="relative border-t px-5 pb-6 pt-6">
                       <div className="grid gap-4 md:grid-cols-2">
                         {/* LEFT: Stay + Activities */}
                         <div className="space-y-4">
@@ -807,7 +870,7 @@ export function HomeView({ posts }: { posts: Post[] }) {
   }, [posts]);
 
   return (
-    <main className="min-h-screen text-[hsl(var(--text))]">
+    <main className="min-h-screen text-[hsl(var(--]()text))]">
       <div className="mx-auto max-w-5xl px-5 py-10">
         {/* HERO SECTION */}
         <header className="mb-2">
