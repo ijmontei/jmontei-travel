@@ -283,159 +283,190 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
         </p>
       </div>
 
-      {/* Collapsed filter header */}
-      <div className="mt-5 rounded-2xl border bg-white/70 backdrop-blur p-4 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setFiltersOpen((v) => !v)}
-              className="rounded-full border bg-[#414141] px-4 py-2 text-sm font-semibold text-[#f5de88] hover:opacity-90"
-              aria-expanded={filtersOpen}
-              aria-controls="itinerary-filters"
-            >
-              {filtersOpen ? "Close Search & Filters" : "Search & Filters"}
-            </button>
+      {/* Filters: compact pill + expandable panel */}
+<div className="mt-5">
+  <div className="flex flex-wrap items-center gap-2">
+    {/* Toggle pill */}
+    <button
+      type="button"
+      onClick={() => setFiltersOpen((v) => !v)}
+      className={[
+        "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold shadow-sm transition",
+        filtersOpen
+          ? "bg-[#414141] text-[#f5de88]"
+          : "bg-white/70 text-zinc-800 hover:bg-white",
+      ].join(" ")}
+      aria-expanded={filtersOpen}
+      aria-controls="itinerary-filters"
+      title="Search & Filters"
+    >
+      {/* tiny “sliders” icon */}
+      <svg
+        viewBox="0 0 24 24"
+        className="h-4 w-4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M4 21v-7" />
+        <path d="M4 10V3" />
+        <path d="M12 21v-9" />
+        <path d="M12 8V3" />
+        <path d="M20 21v-5" />
+        <path d="M20 12V3" />
+        <path d="M2 14h4" />
+        <path d="M10 8h4" />
+        <path d="M18 16h4" />
+      </svg>
 
-            <div className="text-sm text-zinc-600">
-              {byDay.length} day{byDay.length === 1 ? "" : "s"} shown
-            </div>
+      {filtersOpen ? "Close" : "Filters"}
+      <span className="ml-1 rounded-full border bg-white/70 px-2 py-0.5 text-xs text-zinc-700">
+        {byDay.length} day{byDay.length === 1 ? "" : "s"}
+      </span>
+    </button>
+
+    {/* Active filter chips (only show when something is active) */}
+    <div className="flex flex-wrap items-center gap-2">
+      {q.trim() ? <Pill>Search: “{q.trim()}”</Pill> : null}
+      {country !== "All" ? <Pill>Country: {country}</Pill> : null}
+      {city !== "All" ? <Pill>City: {city}</Pill> : null}
+      {activity !== "All" ? <Pill>Activity: {activity}</Pill> : null}
+      {dateFrom ? <Pill>From: {dateFrom}</Pill> : null}
+      {dateTo ? <Pill>To: {dateTo}</Pill> : null}
+
+      {hasActiveFilters ? (
+        <button
+          type="button"
+          onClick={clearFilters}
+          className="rounded-full border bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+        >
+          Clear
+        </button>
+      ) : null}
+    </div>
+  </div>
+
+  {/* Expandable filter panel */}
+  {filtersOpen ? (
+    <div
+      id="itinerary-filters"
+      className="mt-3 rounded-2xl border bg-white/70 backdrop-blur p-4 shadow-sm"
+    >
+      <div className="grid gap-3 md:grid-cols-6">
+        {/* Keyword */}
+        <label className="md:col-span-2">
+          <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
+            KEYWORD
           </div>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search titles, excerpts, cities, activities..."
+            className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
+          />
+        </label>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {q.trim() ? <Pill>Search: “{q.trim()}”</Pill> : null}
-            {country !== "All" ? <Pill>Country: {country}</Pill> : null}
-            {city !== "All" ? <Pill>City: {city}</Pill> : null}
-            {activity !== "All" ? <Pill>Activity: {activity}</Pill> : null}
-            {dateFrom ? <Pill>From: {dateFrom}</Pill> : null}
-            {dateTo ? <Pill>To: {dateTo}</Pill> : null}
-
-            {hasActiveFilters ? (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="rounded-full border bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
-              >
-                Clear
-              </button>
-            ) : null}
+        {/* Country */}
+        <label>
+          <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
+            COUNTRY
           </div>
+          <select
+            value={country}
+            onChange={(e) => {
+              setCountry(e.target.value);
+              setCity("All");
+            }}
+            className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
+          >
+            {countryOptions.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {/* City */}
+        <label>
+          <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
+            CITY
+          </div>
+          <select
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+            className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
+          >
+            {cityOptions.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {/* Activity */}
+        <label>
+          <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
+            ACTIVITY
+          </div>
+          <select
+            value={activity}
+            onChange={(e) => setActivity(e.target.value)}
+            className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
+          >
+            {activityOptions.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {/* Date From */}
+        <label>
+          <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
+            DATE FROM
+          </div>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
+          />
+        </label>
+
+        {/* Date To */}
+        <label>
+          <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
+            DATE TO
+          </div>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
+          />
+        </label>
+
+        {/* Clear button */}
+        <div className="md:col-span-6 flex justify-end">
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="rounded-xl border bg-[#414141] px-4 py-2 text-sm font-semibold text-[#f5de88] hover:opacity-90"
+          >
+            Clear all filters
+          </button>
         </div>
-
-        {/* Expandable filter panel */}
-        {filtersOpen ? (
-          <div id="itinerary-filters" className="mt-4 border-t pt-4">
-            <div className="grid gap-3 md:grid-cols-6">
-              {/* Keyword */}
-              <label className="md:col-span-2">
-                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
-                  KEYWORD
-                </div>
-                <input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="Search titles, excerpts, cities, activities..."
-                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
-                />
-              </label>
-
-              {/* Country */}
-              <label>
-                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
-                  COUNTRY
-                </div>
-                <select
-                  value={country}
-                  onChange={(e) => {
-                    setCountry(e.target.value);
-                    setCity("All");
-                  }}
-                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
-                >
-                  {countryOptions.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {/* City */}
-              <label>
-                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
-                  CITY
-                </div>
-                <select
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
-                >
-                  {cityOptions.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {/* Activity */}
-              <label>
-                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
-                  ACTIVITY
-                </div>
-                <select
-                  value={activity}
-                  onChange={(e) => setActivity(e.target.value)}
-                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
-                >
-                  {activityOptions.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {/* Date From */}
-              <label>
-                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
-                  DATE FROM
-                </div>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
-                />
-              </label>
-
-              {/* Date To */}
-              <label>
-                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
-                  DATE TO
-                </div>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
-                />
-              </label>
-
-              {/* Clear button */}
-              <div className="md:col-span-6 flex justify-end">
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="rounded-xl border bg-[#414141] px-4 py-2 text-sm font-semibold text-[#f5de88] hover:opacity-90"
-                >
-                  Clear all filters
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
       </div>
+    </div>
+  ) : null}
+</div>
+
 
       {/* Empty state */}
       {!byDay.length ? (
