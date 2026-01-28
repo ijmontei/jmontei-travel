@@ -286,18 +286,46 @@ function flattenDays(days: DayGroup[]) {
 }
 
 type FlatPost = { post: Post; day: Date; dayKey: string };
+function normText(v?: string | null) {
+  return (v ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " "); // collapse repeated spaces
+}
+
+function normLink(v?: string | null) {
+  return (v ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\/+$/, ""); // remove trailing slash(es)
+}
+
 function groupPostsByAccommodation(items: Post[]) {
-  const m = new Map<string, { acc: any; posts: Post[]; firstDate: number }>();
+  const m = new Map<
+    string,
+    { acc: any; posts: Post[]; firstDate: number }
+  >();
 
   for (const p of items) {
     const acc = (p as any).accommodation ?? null;
 
-    const name = (acc?.name || "").trim();
-    const type = (acc?.type || "").trim();
-    const link = (acc?.link || "").trim();
+    const rawName = acc?.name ?? "";
+    const rawType = acc?.type ?? "";
+    const rawLink = acc?.link ?? "";
 
-    const hasAcc = Boolean(name || type || link);
-    const key = hasAcc ? `${name}||${type}||${link}` : "__no_acc__";
+    const name = normText(rawName);
+    const type = normText(rawType);
+    const link = normLink(rawLink);
+
+    // ✅ KEY CHANGE:
+    // If a name exists, group by name (ignore type/link differences).
+    // If no name, fall back to link.
+    // Only use "__no_acc__" if both are missing.
+    const key = name
+      ? `name:${name}`
+      : link
+        ? `link:${link}`
+        : "__no_acc__";
 
     const ts = safeDate((p as any).publishedAt)?.getTime() ?? 0;
 
@@ -306,19 +334,26 @@ function groupPostsByAccommodation(items: Post[]) {
 
     g.posts.push(p);
     g.firstDate = Math.min(g.firstDate, ts);
+
+    // keep the “best” acc info we’ve seen so far (first non-empty wins)
+    if (!g.acc?.name && rawName) g.acc.name = rawName;
+    if (!g.acc?.type && rawType) g.acc.type = rawType;
+    if (!g.acc?.link && rawLink) g.acc.link = rawLink;
   }
 
   const groups = Array.from(m.values()).map((g) => ({
     ...g,
     posts: [...g.posts].sort(
       (a: any, b: any) =>
-        (safeDate(a.publishedAt)?.getTime() ?? 0) - (safeDate(b.publishedAt)?.getTime() ?? 0)
+        (safeDate(a.publishedAt)?.getTime() ?? 0) -
+        (safeDate(b.publishedAt)?.getTime() ?? 0)
     ),
   }));
 
   groups.sort((a, b) => a.firstDate - b.firstDate);
   return groups;
 }
+
 
 type StayCard = {
   key: string;
