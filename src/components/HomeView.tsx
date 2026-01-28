@@ -287,50 +287,38 @@ function flattenDays(days: DayGroup[]) {
 
 type FlatPost = { post: Post; day: Date; dayKey: string };
 function groupPostsByAccommodation(items: Post[]) {
-  const m = new Map<
-    string,
-    { acc: { name: string; type: string; link: string } | null; posts: Post[]; firstTs: number }
-  >();
+  const m = new Map<string, { acc: any; posts: Post[]; firstDate: number }>();
 
   for (const p of items) {
-    const a = (p as any).accommodation ?? null;
+    const acc = (p as any).accommodation ?? null;
 
-    const name = (a?.name || "").trim();
-    const type = (a?.type || "").trim();
-    const link = (a?.link || "").trim();
+    const name = (acc?.name || "").trim();
+    const type = (acc?.type || "").trim();
+    const link = (acc?.link || "").trim();
 
     const hasAcc = Boolean(name || type || link);
     const key = hasAcc ? `${name}||${type}||${link}` : "__no_acc__";
 
     const ts = safeDate((p as any).publishedAt)?.getTime() ?? 0;
 
-    if (!m.has(key)) {
-      m.set(key, {
-        acc: hasAcc ? { name, type, link } : null,
-        posts: [],
-        firstTs: ts || Number.MAX_SAFE_INTEGER,
-      });
-    }
-
+    if (!m.has(key)) m.set(key, { acc, posts: [], firstDate: ts });
     const g = m.get(key)!;
+
     g.posts.push(p);
-    g.firstTs = Math.min(g.firstTs, ts || g.firstTs);
+    g.firstDate = Math.min(g.firstDate, ts);
   }
 
   const groups = Array.from(m.values()).map((g) => ({
-    acc: g.acc,
+    ...g,
     posts: [...g.posts].sort(
       (a: any, b: any) =>
         (safeDate(a.publishedAt)?.getTime() ?? 0) - (safeDate(b.publishedAt)?.getTime() ?? 0)
     ),
-    firstTs: g.firstTs,
   }));
 
-  groups.sort((a, b) => a.firstTs - b.firstTs);
+  groups.sort((a, b) => a.firstDate - b.firstDate);
   return groups;
 }
-
-
 
 type StayCard = {
   key: string;
@@ -784,71 +772,78 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
 
                                   return (
                                     <div className="space-y-3">
-                                      {accGroups.map(({ acc, posts }, gi) => (
-                                        <div
-                                          key={`acc-group-${gi}`}
-                                          className="rounded-xl border bg-white/60 p-3 shadow-sm"
-                                        >
-                                          {/* Posts inside (sorted already) */}
-                                          <div className="space-y-2">
-                                            {posts.map((p) => {
-                                              const dt = safeDate((p as any).publishedAt);
-                                              return (
-                                                <div
-                                                  key={p._id}
-                                                  className="flex items-center justify-between gap-3 rounded-lg border bg-zinc-50 px-3 py-2"
-                                                >
-                                                  <div className="min-w-0">
-                                                    <div className="truncate text-sm font-semibold text-zinc-900">
-                                                      {p.title}
-                                                    </div>
-                                  
-                                                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-zinc-500">
-                                                      <span
-                                                        className="inline-flex h-1.5 w-1.5 rounded-full"
-                                                        style={{ background: `hsla(${cg.hue}, 85%, 45%, 0.9)` }}
-                                                        aria-hidden
-                                                      />
-                                                      <span className="truncate">{dt ? formatDayLabel(dt) : ""}</span>
-                                                    </div>
-                                                  </div>
-                                  
-                                                  <Link
-                                                    href={`/posts/${p.slug}`}
-                                                    className="shrink-0 rounded-full border bg-[#414141] px-3 py-1 text-xs font-semibold text-[#f5de88] hover:opacity-90"
+                                      {accGroups.map(({ acc, posts }, gi) => {
+                                        const accName = (acc?.name || "").trim();
+                                        const accType = (acc?.type || "").trim();
+                                        const accLink = (acc?.link || "").trim();
+
+                                        const hasAcc = Boolean(accName || accType || accLink);
+                                        const chipLabel = [
+                                          "Accommodation:",
+                                          accName || "View",
+                                          accType ? `• ${accType}` : "",
+                                        ]
+                                          .filter(Boolean)
+                                          .join(" ");
+
+                                        return (
+                                          <div
+                                            key={`acc-group-${gi}`}
+                                            className="rounded-2xl border bg-white/60 shadow-sm overflow-hidden"
+                                          >
+                                            {/* Post rows inside ONE group card */}
+                                            <div className="divide-y">
+                                              {posts.map((p) => {
+                                                const dt = safeDate((p as any).publishedAt);
+                                                return (
+                                                  <div
+                                                    key={p._id}
+                                                    className="flex items-center justify-between gap-4 px-4 py-4"
                                                   >
-                                                    Read Post →
-                                                  </Link>
-                                                </div>
-                                              );
-                                            })}
+                                                    <div className="min-w-0">
+                                                      <div className="truncate text-sm font-semibold text-zinc-900">
+                                                        {p.title}
+                                                      </div>
+
+                                                      <div className="mt-1 flex items-center gap-2 text-[11px] text-zinc-500">
+                                                        <span
+                                                          className="inline-flex h-1.5 w-1.5 rounded-full"
+                                                          style={{ background: `hsla(${cg.hue}, 85%, 45%, 0.9)` }}
+                                                          aria-hidden
+                                                        />
+                                                        <span className="truncate">{dt ? formatDayLabel(dt) : ""}</span>
+                                                      </div>
+                                                    </div>
+
+                                                    <Link
+                                                      href={`/posts/${p.slug}`}
+                                                      className="shrink-0 rounded-full border bg-[#414141] px-3 py-1 text-xs font-semibold text-[#f5de88] hover:opacity-90"
+                                                    >
+                                                      Read Post →
+                                                    </Link>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+
+                                            {/* Accommodation chip ONCE per group */}
+                                            {hasAcc && accLink ? (
+                                              <div className="border-t bg-white/50 px-4 py-3 flex justify-end">
+                                                <a
+                                                  href={accLink}
+                                                  target="_blank"
+                                                  rel="noreferrer"
+                                                  className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+                                                  title={accName || "Accommodation"}
+                                                >
+                                                  {chipLabel} ↗
+                                                </a>
+                                              </div>
+                                            ) : null}
                                           </div>
-                                  
-                                          {/* Accommodation pill ONCE per group */}
-                                          <div className="mt-3 flex justify-end">
-                                            {acc?.link ? (
-                                              <a
-                                                href={acc.link}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
-                                              >
-                                                Accommodation: {acc.name || "View"}
-                                                {acc.type ? ` • ${acc.type}` : ""} ↗
-                                              </a>
-                                            ) : acc ? (
-                                              <span className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs font-semibold text-zinc-700">
-                                                Accommodation: {acc.name || "Unknown"}
-                                                {acc.type ? ` • ${acc.type}` : ""}
-                                              </span>
-                                            ) : (
-                                              <span className="inline-flex items-center rounded-full border bg-white px-3 py-1 text-xs font-semibold text-zinc-500">
-                                                Accommodation: —
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                      ))}
+                                        );
+                                      })}
+
                                     </div>
                                   );
                                   
