@@ -221,7 +221,7 @@ export function CountryAccordion({
                             excerpt={p.excerpt}
                             coverImage={p.coverImage}
                             publishedAt={p.publishedAt}
-                            country={p.country}
+                            country={p.city}
                           />
                         </Reveal>
                       ))}
