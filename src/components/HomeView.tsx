@@ -424,7 +424,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
       }
 
       if (q.trim()) {
-        const hay = [p.title, p.excerpt, ctry, cty].filter(Boolean).join(" ").toLowerCase();
+        const hay = [p.title, p.excerpt, p.body, ctry, cty].filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q.trim().toLowerCase())) return false;
       }
 

@@ -13,7 +13,9 @@ export const POSTS_QUERY = `*[_type == "post" && defined(slug.current)] | order(
     address,
     link,
     notes
-  }
+  },
+  body,
+  gallery
 }`;
 
 export const POST_BY_SLUG_QUERY = `*[_type == "post" && slug.current == $slug][0]{
