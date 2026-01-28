@@ -6,6 +6,7 @@ import { PostCard } from "@/components/PostCard";
 import { CountryAccordion } from "@/components/CountryAccordion";
 import { HeroGlobe } from "@/components/HeroGlobe";
 import { Reveal } from "@/components/Reveal";
+import type React from "react";
 import Link from "next/link";
 
 type Mode = "latest" | "country" | "itinerary";
@@ -624,19 +625,35 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                     <div className="flex items-center gap-3">
                       <AccentDot hue={cg.hue} />
                       <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
                         <div className="text-sm font-semibold text-zinc-900 truncate">
                           {cg.country}
                         </div>
-                        <div className="text-xs text-zinc-500">
-                          {countryRangeLabel ? `${countryRangeLabel} · ` : ""}
-                          {cg.cities.length} cit{cg.cities.length === 1 ? "y" : "ies"} ·{" "}
-                          {cg.allItems.length} post{cg.allItems.length === 1 ? "" : "s"}
-                        </div>
+
+                        {countryRangeLabel ? (
+                          <span
+                            className="rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm"
+                            style={{
+                              background: `linear-gradient(135deg, hsla(${cg.hue}, 70%, 92%, 0.92), hsla(${cg.hue}, 70%, 96%, 0.92))`,
+                              borderColor: `hsla(${cg.hue}, 60%, 55%, 0.22)`,
+                              color: `hsla(${cg.hue}, 30%, 18%, 0.95)`,
+                            }}
+                          >
+                            {countryRangeLabel}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div className="text-xs text-zinc-500">
+                        {cg.cities.length} cit{cg.cities.length === 1 ? "y" : "ies"} ·{" "}
+                        {cg.allItems.length} post{cg.allItems.length === 1 ? "" : "s"}
+                      </div>
+
                       </div>
 
                       <span className="ml-auto inline-flex items-center gap-1 rounded-full border bg-zinc-50 px-2 py-0.5 text-xs text-zinc-700">
                         <span>Expand</span>
-                        <span className="transition-transform duration-200 group-open:rotate-180" aria-hidden>
+                        <span className="ml-1" aria-hidden>
                           ▾
                         </span>
                       </span>
@@ -686,27 +703,37 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                             <summary className="cursor-pointer list-none px-4 py-4">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
                                   <div className="text-sm font-semibold text-zinc-900">
                                     {cityGroup.city}
                                   </div>
 
-                                  <div className="mt-2 flex flex-wrap gap-2">
-                                    {locTags.slice(0, 3).map((t, i) => (
-                                      <AccentTag key={`tag-${cityGroup.city}-${i}`} hue={cg.hue}>
-                                        {t}
-                                      </AccentTag>
-                                    ))}
-
-                                    <span className="rounded-full border bg-white px-2.5 py-1 text-xs text-zinc-700 shadow-sm">
-                                      {nightsLabel}
+                                  {cityRangeLabel ? (
+                                    <span
+                                      className="rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm"
+                                      style={{
+                                        background: `linear-gradient(135deg, hsla(${cg.hue}, 70%, 92%, 0.92), hsla(${cg.hue}, 70%, 96%, 0.92))`,
+                                        borderColor: `hsla(${cg.hue}, 60%, 55%, 0.22)`,
+                                        color: `hsla(${cg.hue}, 30%, 18%, 0.95)`,
+                                      }}
+                                    >
+                                      {cityRangeLabel}
                                     </span>
+                                  ) : null}
 
-                                    {cityRangeLabel ? (
-                                      <span className="rounded-full border bg-zinc-50 px-2.5 py-1 text-xs text-zinc-700">
-                                        {cityRangeLabel}
-                                      </span>
-                                    ) : null}
-                                  </div>
+                                  <span className="rounded-full border bg-white px-2.5 py-1 text-[11px] font-semibold text-zinc-700 shadow-sm">
+                                    {nightsLabel}
+                                  </span>
+                                </div>
+
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {locTags.slice(0, 3).map((t, i) => (
+                                    <AccentTag key={`tag-${cityGroup.city}-${i}`} hue={cg.hue}>
+                                      {t}
+                                    </AccentTag>
+                                  ))}
+                                </div>
+
                                 </div>
 
                                 <span className="shrink-0 inline-flex items-center gap-1 rounded-full border bg-zinc-50 px-2 py-0.5 text-xs text-zinc-700">
