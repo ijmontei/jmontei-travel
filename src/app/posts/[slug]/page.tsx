@@ -132,17 +132,10 @@ export default async function PostPage({ params }: PageProps) {
           </div>
         </div>
       ) : null}
-    /*
+
       {}
       {hasItineraryDetails ? (  
         <section className="mb-8 rounded-2xl border bg-white p-4 sm:p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold tracking-tight text-zinc-900">
-              Itinerary details
-            </h2>
-          </div>
-
-          <div className="mt-3 space-y-4">
             {}
             {post.accommodation?.name ? (
               <div className="rounded-xl bg-zinc-50 p-3">
@@ -222,9 +215,8 @@ export default async function PostPage({ params }: PageProps) {
                 </ul>
               </div>
             ) : null}
-          </div>
         </section>
-      ) : null} */
+      ) : null} 
 
       <PortableTextRenderer value={post.body} />
 
