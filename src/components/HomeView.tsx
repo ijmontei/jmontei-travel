@@ -412,9 +412,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
             (country → city)
           </span>
         </h3>
-        <p className="text-sm text-zinc-500">
-          Expand a country, then a city — you’ll see stays + posts grouped by date.
-        </p>
       </div>
 
       {/* Filters */}
