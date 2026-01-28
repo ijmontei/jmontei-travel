@@ -85,6 +85,14 @@ function formatDayLabel(dt: Date) {
   });
 }
 
+function formatShortDate(dt: Date) {
+  return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function formatShortDateWithYear(dt: Date) {
+  return dt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
 function uniq<T>(arr: T[]) {
   return Array.from(new Set(arr));
 }
@@ -195,6 +203,28 @@ function AccentTag({
   );
 }
 
+function rangeLabel(d1: Date, d2: Date, includeYear: boolean) {
+  if (d1.getTime() === d2.getTime()) {
+    return includeYear ? formatShortDateWithYear(d1) : formatShortDate(d1);
+  }
+  if (includeYear) {
+    return `${formatShortDateWithYear(d1)} – ${formatShortDateWithYear(d2)}`;
+  }
+  return `${formatShortDate(d1)} – ${formatShortDate(d2)}`;
+}
+
+function dateRangeFromPosts(items: Post[]) {
+  const times = items
+    .map((p: any) => safeDate(p.publishedAt)?.getTime())
+    .filter((t): t is number => typeof t === "number" && Number.isFinite(t))
+    .sort((a, b) => a - b);
+
+  if (!times.length) return null;
+  const start = new Date(times[0]);
+  const end = new Date(times[times.length - 1]);
+  return { start, end };
+}
+
 /** ---------- Itinerary Panel (Country → City → Days) ---------- */
 type DayGroup = { key: string; day: Date; items: Post[] };
 type CityGroup = {
@@ -202,16 +232,19 @@ type CityGroup = {
   days: DayGroup[];
   accommodations: { names: string[]; types: string[]; links: string[] };
   allItems: Post[];
+  nights: number;
+  range: { start: Date; end: Date } | null;
 };
 type CountryGroup = {
   country: string;
   hue: number;
   cities: CityGroup[];
   allItems: Post[];
+  range: { start: Date; end: Date } | null;
 };
 
 function ItineraryPanel({ posts }: { posts: Post[] }) {
-  // Filters (still useful, even with the new structure)
+  // Filters
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [country, setCountry] = useState<string>("All");
   const [city, setCity] = useState<string>("All");
@@ -280,7 +313,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
   };
 
   const grouped = useMemo<CountryGroup[]>(() => {
-    // Sort oldest → newest to preserve “route” ordering inside groups
+    // Sort oldest → newest to preserve “route” ordering
     const ordered = [...filtered]
       .filter((p: any) => Boolean(safeDate(p.publishedAt)))
       .sort(
@@ -288,7 +321,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
           (safeDate(a.publishedAt)?.getTime() ?? 0) - (safeDate(b.publishedAt)?.getTime() ?? 0)
       );
 
-    // Ordered maps (we preserve insertion order)
     const countryMap = new Map<string, { all: Post[]; cityMap: Map<string, Post[]> }>();
 
     for (const p of ordered) {
@@ -310,8 +342,8 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
       const cities: CityGroup[] = [];
 
       for (const [cty, cityPosts] of payload.cityMap.entries()) {
-        // days within a city
         const dayMap = new Map<string, { day: Date; items: Post[] }>();
+
         for (const p of cityPosts) {
           const dt = safeDate((p as any).publishedAt as string);
           if (!dt) continue;
@@ -341,6 +373,9 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
           cityPosts.map((p: any) => p.accommodation?.link).filter(Boolean) as string[]
         );
 
+        const cityRange = dateRangeFromPosts(cityPosts);
+        const nights = days.length; // unique date count
+
         cities.push({
           city: cty,
           days,
@@ -350,6 +385,8 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
             links: accommodationLinks,
           },
           allItems: cityPosts,
+          nights,
+          range: cityRange,
         });
       }
 
@@ -358,6 +395,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
         hue,
         cities,
         allItems: payload.all,
+        range: dateRangeFromPosts(payload.all),
       });
     }
 
@@ -366,7 +404,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
 
   return (
     <section className="mt-6">
-      {/* Header */}
       <div className="flex flex-col gap-2">
         <h3 className="text-xl font-semibold tracking-tight">
           Itinerary{" "}
@@ -530,7 +567,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
         ) : null}
       </div>
 
-      {/* Empty state */}
       {!grouped.length ? (
         <div className="mt-5 rounded-2xl border bg-white p-5 text-sm text-zinc-600">
           No matches — try clearing filters or widening your date range.
@@ -541,9 +577,12 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
             const prevCountry = cIdx > 0 ? grouped[cIdx - 1]?.country : null;
             const showCountryTravel = Boolean(prevCountry) && prevCountry !== cg.country;
 
+            const countryRangeLabel =
+              cg.range ? rangeLabel(cg.range.start, cg.range.end, true) : null;
+
             return (
               <div key={`country-${cg.country}`} className="space-y-3">
-                {/* Travel break between countries */}
+                {/* Travel break */}
                 {showCountryTravel ? (
                   <div className="rounded-2xl border bg-white/80 backdrop-blur px-4 py-3 shadow-sm relative overflow-hidden">
                     <div
@@ -566,7 +605,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                       >
                         <PlaneIcon className="h-4 w-4" />
                       </span>
-
                       <div className="min-w-0">
                         <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
                           TRAVEL
@@ -574,9 +612,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                         <div className="text-sm font-semibold text-zinc-900">
                           Flight to {cg.country}
                         </div>
-                        <div className="text-xs text-zinc-500">
-                          from {prevCountry}
-                        </div>
+                        <div className="text-xs text-zinc-500">from {prevCountry}</div>
                       </div>
                     </div>
                   </div>
@@ -592,6 +628,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                           {cg.country}
                         </div>
                         <div className="text-xs text-zinc-500">
+                          {countryRangeLabel ? `${countryRangeLabel} · ` : ""}
                           {cg.cities.length} cit{cg.cities.length === 1 ? "y" : "ies"} ·{" "}
                           {cg.allItems.length} post{cg.allItems.length === 1 ? "" : "s"}
                         </div>
@@ -613,9 +650,13 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
 
                       const locTags = buildLocationTags(cityGroup.allItems);
 
+                      const cityRangeLabel =
+                        cityGroup.range ? rangeLabel(cityGroup.range.start, cityGroup.range.end, false) : null;
+
+                      const nightsLabel = `${cityGroup.nights} night${cityGroup.nights === 1 ? "" : "s"}`;
+
                       return (
                         <div key={`city-${cg.country}-${cityGroup.city}`} className="space-y-3">
-                          {/* Transit break between cities (within a country) */}
                           {showTransit ? (
                             <div className="rounded-2xl border bg-white/70 backdrop-blur px-4 py-3 shadow-sm">
                               <div className="flex items-center gap-3">
@@ -629,7 +670,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                                 >
                                   <CarIcon className="h-4 w-4" />
                                 </span>
-
                                 <div className="min-w-0">
                                   <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
                                     TRANSIT
@@ -642,7 +682,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                             </div>
                           ) : null}
 
-                          {/* City pill */}
                           <details className="group/city rounded-2xl border bg-white shadow-sm overflow-hidden">
                             <summary className="cursor-pointer list-none px-4 py-4">
                               <div className="flex items-start justify-between gap-3">
@@ -650,15 +689,23 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                                   <div className="text-sm font-semibold text-zinc-900">
                                     {cityGroup.city}
                                   </div>
+
                                   <div className="mt-2 flex flex-wrap gap-2">
                                     {locTags.slice(0, 3).map((t, i) => (
                                       <AccentTag key={`tag-${cityGroup.city}-${i}`} hue={cg.hue}>
                                         {t}
                                       </AccentTag>
                                     ))}
+
                                     <span className="rounded-full border bg-white px-2.5 py-1 text-xs text-zinc-700 shadow-sm">
-                                      {cityGroup.days.length} day{cityGroup.days.length === 1 ? "" : "s"}
+                                      {nightsLabel}
                                     </span>
+
+                                    {cityRangeLabel ? (
+                                      <span className="rounded-full border bg-zinc-50 px-2.5 py-1 text-xs text-zinc-700">
+                                        {cityRangeLabel}
+                                      </span>
+                                    ) : null}
                                   </div>
                                 </div>
 
@@ -721,20 +768,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                                       </div>
                                     )}
                                   </div>
-
-                                  {/* Small day list (optional, but low clutter and useful) */}
-                                  <div className="rounded-2xl border bg-white p-4">
-                                    <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
-                                      DATES IN {cityGroup.city.toUpperCase()}
-                                    </div>
-                                    <div className="mt-3 flex flex-wrap gap-2">
-                                      {cityGroup.days.map((d) => (
-                                        <span key={`daychip-${cityGroup.city}-${d.key}`} className="rounded-full border bg-zinc-50 px-2.5 py-1 text-xs text-zinc-700">
-                                          {d.key}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
                                 </div>
 
                                 {/* RIGHT: Posts grouped by day */}
@@ -745,9 +778,15 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
 
                                   <div className="mt-3 space-y-4">
                                     {cityGroup.days.map((dg) => (
-                                      <div key={`posts-${cityGroup.city}-${dg.key}`} className="rounded-2xl border bg-white p-3 shadow-sm">
+                                      <div
+                                        key={`posts-${cityGroup.city}-${dg.key}`}
+                                        className="rounded-2xl border bg-white p-3 shadow-sm"
+                                      >
                                         <div className="flex items-center gap-2">
-                                          <span className="inline-flex h-2 w-2 rounded-full" style={{ background: `hsla(${cg.hue}, 85%, 45%, 0.9)` }} />
+                                          <span
+                                            className="inline-flex h-2 w-2 rounded-full"
+                                            style={{ background: `hsla(${cg.hue}, 85%, 45%, 0.9)` }}
+                                          />
                                           <div className="text-sm font-semibold text-zinc-900">
                                             {formatDayLabel(dg.day)}
                                           </div>
@@ -852,7 +891,6 @@ export function HomeView({ posts }: { posts: Post[] }) {
   return (
     <main className="min-h-screen text-[hsl(var(--text))]">
       <div className="mx-auto max-w-5xl px-5 py-10">
-        {/* HERO SECTION */}
         <header className="mb-2">
           <div className="flex justify-center -mt-6">
             <HeroGlobe
@@ -873,7 +911,6 @@ export function HomeView({ posts }: { posts: Post[] }) {
           </div>
         </header>
 
-        {/* CONTENT */}
         <div className="transition-opacity duration-200">
           {mode === "latest" ? (
             <section className="grid gap-6 md:grid-cols-2">
