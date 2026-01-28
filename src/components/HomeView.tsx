@@ -287,34 +287,41 @@ function flattenDays(days: DayGroup[]) {
 
 type FlatPost = { post: Post; day: Date; dayKey: string };
 function groupPostsByAccommodation(items: Post[]) {
-  const m = new Map<string, { acc: any; posts: Post[] }>();
+  const m = new Map<string, { acc: any; posts: Post[]; firstDate: number }>();
 
   for (const p of items) {
     const acc = (p as any).accommodation ?? null;
-    const key =
-      acc?.link?.trim() ||
-      acc?.name?.trim() ||
-      `__no_acc__`;
 
-    if (!m.has(key)) m.set(key, { acc, posts: [] });
-    m.get(key)!.posts.push(p);
+    const name = (acc?.name || "").trim();
+    const type = (acc?.type || "").trim();
+    const link = (acc?.link || "").trim();
+
+    const hasAcc = Boolean(name || type || link);
+    const key = hasAcc ? `${name}||${type}||${link}` : "__no_acc__";
+
+    const ts = safeDate((p as any).publishedAt)?.getTime() ?? 0;
+
+    if (!m.has(key)) m.set(key, { acc: hasAcc ? { name, type, link } : null, posts: [], firstDate: ts || Number.MAX_SAFE_INTEGER });
+    const g = m.get(key)!;
+
+    g.posts.push(p);
+    g.firstDate = Math.min(g.firstDate, ts || g.firstDate);
   }
 
-  // sort posts inside each group by date
   const groups = Array.from(m.values()).map((g) => ({
-    ...g,
+    acc: g.acc,
     posts: [...g.posts].sort(
       (a: any, b: any) =>
         (safeDate(a.publishedAt)?.getTime() ?? 0) - (safeDate(b.publishedAt)?.getTime() ?? 0)
     ),
-    firstDate: safeDate((g.posts[0] as any)?.publishedAt)?.getTime() ?? 0,
+    firstDate: g.firstDate,
   }));
 
-  // sort groups by earliest post date
   groups.sort((a, b) => a.firstDate - b.firstDate);
 
   return groups;
 }
+
 
 type StayCard = {
   key: string;
@@ -764,81 +771,80 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                               {/* ONE unified panel: stay cards + posts */}
                               <div className="space-y-3">
                                 {(() => {
-                                  const flat = flattenDays(cityGroup.days);
                                   const accGroups = groupPostsByAccommodation(cityGroup.allItems);
 
                                   return (
                                     <div className="space-y-3">
-                                  {accGroups.map(({ acc, posts }, gi) => (
-                                    <div key={`acc-group-${gi}`} className="space-y-2">
-                                      {posts.map((p) => {
-                                        const dt = safeDate((p as any).publishedAt);
-                                        return (
-                                          <div
-                                            key={p._id}
-                                            className="flex items-center justify-between gap-3 rounded-lg border bg-zinc-50 px-3 py-2"
-                                          >
-                                            <div className="min-w-0">
-                                              <div className="truncate text-sm font-semibold text-zinc-900">
-                                                {p.title}
+                                    {accGroups.map(({ acc, posts }, gi) => (
+                                      <div
+                                        key={`acc-group-${gi}`}
+                                        className="rounded-xl border bg-white/60 p-3 shadow-sm"
+                                      >
+                                        <div className="space-y-2">
+                                          {posts.map((p) => {
+                                            const dt = safeDate((p as any).publishedAt);
+                                  
+                                            return (
+                                              <div
+                                                key={p._id}
+                                                className="flex items-center justify-between gap-3 rounded-lg border bg-zinc-50 px-3 py-2"
+                                              >
+                                                <div className="min-w-0">
+                                                  <div className="truncate text-sm font-semibold text-zinc-900">
+                                                    {p.title}
+                                                  </div>
+                                  
+                                                  <div className="mt-0.5 flex items-center gap-2 text-[11px] text-zinc-500">
+                                                    <span
+                                                      className="inline-flex h-1.5 w-1.5 rounded-full"
+                                                      style={{ background: `hsla(${cg.hue}, 85%, 45%, 0.9)` }}
+                                                      aria-hidden
+                                                    />
+                                                    <span className="truncate">{dt ? formatDayLabel(dt) : ""}</span>
+                                                  </div>
+                                                </div>
+                                  
+                                                <Link
+                                                  href={`/posts/${p.slug}`}
+                                                  className="shrink-0 rounded-full border bg-[#414141] px-3 py-1 text-xs font-semibold text-[#f5de88] hover:opacity-90"
+                                                >
+                                                  Read Post →
+                                                </Link>
                                               </div>
-
-                                              <div className="mt-0.5 flex items-center gap-2 text-[11px] text-zinc-500">
-                                                <span
-                                                  className="inline-flex h-1.5 w-1.5 rounded-full"
-                                                  style={{ background: `hsla(${cg.hue}, 85%, 45%, 0.9)` }}
-                                                  aria-hidden
-                                                />
-                                                <span className="truncate">
-                                                  {dt ? formatDayLabel(dt) : ""}
-                                                </span>
-
-                                                {/* Accommodation action under date */}
-                                                {acc?.link ? (
-                                                  <>
-                                                    <span className="text-zinc-300">•</span>
-                                                    <a
-                                                      href={acc.link}
-                                                      target="_blank"
-                                                      rel="noreferrer"
-                                                      className="inline-flex items-center gap-1 rounded-full border bg-white px-2 py-0.5 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-50"
-                                                    >
-                                                      Accommodation ↗
-                                                    </a>
-                                                  </>
-                                                ) : null}
-                                              </div>
-                                            </div>
-
-                                            <Link
-                                              href={`/posts/${p.slug}`}
-                                              className="shrink-0 rounded-full border bg-[#414141] px-3 py-1 text-xs font-semibold text-[#f5de88] hover:opacity-90"
-                                            >
-                                              Read Post →
-                                            </Link>
-                                          </div>
-                                        );
-                                      })}
-
-                                      {/* If you prefer: show the accommodation link ONCE per group at bottom instead */}
-                                      {/* Uncomment this and remove the inline one above if you like this better */}
-                                      {
-                                      acc?.link ? (
-                                        <div className="flex justify-end">
-                                          <a
-                                            href={acc.link}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
-                                          >
-                                            Accommodation: {acc?.name ?? "View"} ↗
-                                          </a>
+                                            );
+                                          })}
                                         </div>
-                                      ) : null}
-                                      
-                                    </div>
-                                  ))}
-                                </div>
+                                  
+                                        {/* Accommodation shown ONCE per group (best UX for 2+ day stays) */}
+                                        {acc ? (
+                                          <div className="mt-3 flex justify-end">
+                                            {acc.link ? (
+                                              <a
+                                                href={acc.link}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+                                              >
+                                                Accommodation: {acc.name || "View"}{acc.type ? ` • ${acc.type}` : ""} ↗
+                                              </a>
+                                            ) : (
+                                              <span className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs font-semibold text-zinc-700">
+                                                Accommodation: {acc.name || "Unknown"}{acc.type ? ` • ${acc.type}` : ""}
+                                              </span>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <div className="mt-3 flex justify-end">
+                                            <span className="inline-flex items-center rounded-full border bg-white px-3 py-1 text-xs font-semibold text-zinc-500">
+                                              Accommodation: —
+                                            </span>
+                                          </div>
+                                        )}
+
+                                      </div>
+                                    ))}
+                                  </div>
+                                  
 
                                   );
                                 })()}
