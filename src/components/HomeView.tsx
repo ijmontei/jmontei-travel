@@ -681,46 +681,77 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                                 {/* LEFT: Where we stayed (compact) */}
                                 <div className="space-y-4">
                                   <div className="rounded-xl border bg-gradient-to-br from-zinc-50 to-white p-3">
-                                    <div className="text-[11px] font-semibold tracking-wide text-zinc-500">WHERE WE STAYED</div>
+                                    <div className="text-[11px] font-semibold tracking-wide text-zinc-500">ACCOMODATIONS</div>
 
-                                    {cityGroup.accommodations.names.length ? (
-                                      <>
-                                        <div className="mt-1 text-sm font-semibold text-zinc-900">
-                                          {cityGroup.accommodations.names.join(" • ")}
+                                    {(() => {
+                                    // Build a clean, de-duped list of accommodations *as rows*
+                                    const accMap = new Map<
+                                      string,
+                                      { name: string; type?: string; link?: string }
+                                    >();
+
+                                    for (const p of cityGroup.allItems as any[]) {
+                                      const a = p.accommodation;
+                                      const name = (a?.name || "").trim();
+                                      if (!name) continue;
+
+                                      const type = (a?.type || "").trim() || undefined;
+                                      const link = (a?.link || "").trim() || undefined;
+
+                                      // Key keeps pairings together and dedupes cleanly
+                                      const key = `${name}|${type ?? ""}|${link ?? ""}`;
+                                      if (!accMap.has(key)) accMap.set(key, { name, type, link });
+                                    }
+
+                                    const accommodations = Array.from(accMap.values());
+
+                                    if (!accommodations.length) {
+                                      return (
+                                        <div className="mt-2 text-sm text-zinc-500">
+                                          Add an accommodation name in the post to show it here.
                                         </div>
+                                      );
+                                    }
 
-                                        {cityGroup.accommodations.types.length ? (
-                                          <div className="mt-2 flex flex-wrap gap-2">
-                                            {cityGroup.accommodations.types.map((t, i) => (
-                                              <span
-                                                key={`acct-${cityGroup.city}-${i}`}
-                                                className="rounded-full border bg-white px-2.5 py-1 text-[11px] font-semibold text-zinc-700 shadow-sm"
-                                              >
-                                                {t}
-                                              </span>
-                                            ))}
-                                          </div>
-                                        ) : null}
+                                    return (
+                                      <div className="mt-3 space-y-2">
+                                        {accommodations.map((a) => (
+                                          <div
+                                            key={`${a.name}-${a.type ?? ""}-${a.link ?? ""}`}
+                                            className="flex items-center justify-between gap-3 rounded-lg border bg-zinc-50 px-3 py-2"
+                                          >
+                                            <div className="min-w-0">
+                                              <div className="truncate text-sm font-semibold text-zinc-900">
+                                                {a.name}
+                                              </div>
 
-                                        {cityGroup.accommodations.links.length ? (
-                                          <div className="mt-2 space-y-1">
-                                            {cityGroup.accommodations.links.slice(0, 2).map((href, i) => (
+                                              {a.type ? (
+                                                <div className="mt-0.5 text-[11px] text-zinc-500 truncate">
+                                                  {a.type}
+                                                </div>
+                                              ) : null}
+                                            </div>
+
+                                            {a.link ? (
                                               <a
-                                                key={`accl-${cityGroup.city}-${i}`}
-                                                href={href}
+                                                href={a.link}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-800 underline underline-offset-4 hover:text-zinc-900"
+                                                className="shrink-0 rounded-full border bg-[#414141] px-3 py-1 text-xs font-semibold text-[#f5de88] hover:opacity-90"
                                               >
-                                                View place <span aria-hidden>↗</span>
+                                                See accommodation ↗
                                               </a>
-                                            ))}
+                                            ) : (
+                                              <span className="shrink-0 rounded-full border bg-white px-3 py-1 text-xs font-semibold text-zinc-400">
+                                                No link
+                                              </span>
+                                            )}
                                           </div>
-                                        ) : null}
-                                      </>
-                                    ) : (
-                                      <div className="mt-2 text-sm text-zinc-500">Add an accommodation name in the post to show it here.</div>
-                                    )}
+                                        ))}
+                                      </div>
+                                    );
+                                  })()}
+
                                   </div>
                                 </div>
 
