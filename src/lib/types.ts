@@ -26,5 +26,4 @@ export type Post = {
   // NEW
   city?: string;
   accommodation?: Accommodation;
-  activities?: Activity[];
 };

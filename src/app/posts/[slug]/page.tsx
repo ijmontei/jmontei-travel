@@ -37,7 +37,6 @@ type Post = {
   country?: string;
   city?: string;
   accommodation?: Accommodation;
-  activities?: Activity[];
   body?: any;
   gallery?: any[];
 };
@@ -56,13 +55,6 @@ const POST_BY_SLUG_QUERY = /* groq */ `
     name,
     type,
     address,
-    link,
-    notes
-  },
-  activities[]{
-    title,
-    timeOfDay,
-    category,
     link,
     notes
   },
@@ -106,8 +98,7 @@ export default async function PostPage({ params }: PageProps) {
 
   const hasItineraryDetails =
     Boolean(post.city) ||
-    Boolean(post.accommodation?.name) ||
-    Boolean(post.activities?.length);
+    Boolean(post.accommodation?.name);
 
   return (
     <article className="max-w-3xl">

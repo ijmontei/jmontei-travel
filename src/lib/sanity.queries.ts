@@ -13,13 +13,6 @@ export const POSTS_QUERY = `*[_type == "post" && defined(slug.current)] | order(
     address,
     link,
     notes
-  },
-  activities[]{
-    title,
-    timeOfDay,
-    category,
-    link,
-    notes
   }
 }`;
 
@@ -36,13 +29,6 @@ export const POST_BY_SLUG_QUERY = `*[_type == "post" && slug.current == $slug][0
     name,
     type,
     address,
-    link,
-    notes
-  },
-  activities[]{
-    title,
-    timeOfDay,
-    category,
     link,
     notes
   },

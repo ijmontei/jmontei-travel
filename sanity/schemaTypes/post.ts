@@ -91,62 +91,6 @@ export const post = defineType({
       options: { collapsible: true, collapsed: true },
     }),
 
-    // ✅ NEW: Activities (array of objects)
-    defineField({
-      name: "activities",
-      title: "Activities",
-      type: "array",
-      of: [
-        {
-          type: "object",
-          name: "activity",
-          fields: [
-            defineField({
-              name: "title",
-              title: "Activity",
-              type: "string",
-              validation: (r) => r.required(),
-            }),
-            defineField({
-              name: "timeOfDay",
-              title: "Time of day",
-              type: "string",
-              options: {
-                list: [
-                  { title: "Morning", value: "Morning" },
-                  { title: "Afternoon", value: "Afternoon" },
-                  { title: "Evening", value: "Evening" },
-                  { title: "All Day", value: "All Day" },
-                ],
-                layout: "radio",
-              },
-            }),
-            defineField({
-              name: "category",
-              title: "Category",
-              type: "string",
-            }),
-            defineField({
-              name: "link",
-              title: "Link",
-              type: "url",
-            }),
-            defineField({
-              name: "notes",
-              title: "Notes",
-              type: "string",
-            }),
-          ],
-          preview: {
-            select: {
-              title: "title",
-              subtitle: "timeOfDay",
-            },
-          },
-        },
-      ],
-    }),
-
     defineField({
       name: "excerpt",
       title: "Excerpt",
