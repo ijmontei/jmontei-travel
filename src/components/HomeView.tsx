@@ -91,7 +91,11 @@ function formatShortDate(dt: Date) {
 }
 
 function formatShortDateWithYear(dt: Date) {
-  return dt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return dt.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function uniq<T>(arr: T[]) {
@@ -226,6 +230,56 @@ function dateRangeFromPosts(items: Post[]) {
   return { start, end };
 }
 
+/** Slim travel / transit row */
+function TravelRow({
+  kind,
+  hue,
+  title,
+  subtitle,
+}: {
+  kind: "travel" | "transit";
+  hue: number;
+  title: string;
+  subtitle?: string | null;
+}) {
+  return (
+    <div className="relative pl-12">
+      {/* timeline dot */}
+      <div className="absolute left-[8px] top-3">
+        <AccentDot hue={hue} />
+      </div>
+
+      {/* thin dashed line */}
+      <div className="absolute left-[14px] top-0 h-full w-px border-l border-dashed border-zinc-300/70" />
+
+      <div className="flex items-center gap-3 rounded-xl border bg-white/60 px-3 py-2 text-sm shadow-sm backdrop-blur">
+        <span
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full border"
+          style={{
+            background: `radial-gradient(circle at 30% 30%, hsla(${hue}, 85%, 66%, 0.92), hsla(${hue}, 85%, 45%, 0.92))`,
+            borderColor: `hsla(${hue}, 60%, 55%, 0.25)`,
+            color: "white",
+          }}
+        >
+          {kind === "travel" ? (
+            <PlaneIcon className="h-4 w-4" />
+          ) : (
+            <CarIcon className="h-4 w-4" />
+          )}
+        </span>
+
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
+            {kind === "travel" ? "TRAVEL" : "TRANSIT"}
+          </div>
+          <div className="truncate font-semibold text-zinc-900">{title}</div>
+          {subtitle ? <div className="truncate text-xs text-zinc-500">{subtitle}</div> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** ---------- Itinerary Panel (Country → City → Days) ---------- */
 type DayGroup = { key: string; day: Date; items: Post[] };
 type CityGroup = {
@@ -287,10 +341,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
       }
 
       if (q.trim()) {
-        const hay = [p.title, p.excerpt, ctry, cty]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
+        const hay = [p.title, p.excerpt, ctry, cty].filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q.trim().toLowerCase())) return false;
       }
 
@@ -299,11 +350,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
   }, [posts, country, city, dateFrom, dateTo, q]);
 
   const hasActiveFilters =
-    country !== "All" ||
-    city !== "All" ||
-    Boolean(dateFrom) ||
-    Boolean(dateTo) ||
-    Boolean(q.trim());
+    country !== "All" || city !== "All" || Boolean(dateFrom) || Boolean(dateTo) || Boolean(q.trim());
 
   const clearFilters = () => {
     setQ("");
@@ -406,9 +453,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
   return (
     <section className="mt-6">
       <div className="flex flex-col gap-2">
-        <h3 className="text-xl font-semibold tracking-tight">
-          Itinerary
-        </h3>
+        <h3 className="text-xl font-semibold tracking-tight">Itinerary</h3>
       </div>
 
       {/* Filters */}
@@ -419,9 +464,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
             onClick={() => setFiltersOpen((v) => !v)}
             className={[
               "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold shadow-sm transition",
-              filtersOpen
-                ? "bg-[#414141] text-[#f5de88]"
-                : "bg-white/70 text-zinc-800 hover:bg-white",
+              filtersOpen ? "bg-[#414141] text-[#f5de88]" : "bg-white/70 text-zinc-800 hover:bg-white",
             ].join(" ")}
             aria-expanded={filtersOpen}
             aria-controls="itinerary-filters"
@@ -470,15 +513,10 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
         </div>
 
         {filtersOpen ? (
-          <div
-            id="itinerary-filters"
-            className="mt-3 rounded-2xl border bg-white/70 backdrop-blur p-4 shadow-sm"
-          >
+          <div id="itinerary-filters" className="mt-3 rounded-2xl border bg-white/70 backdrop-blur p-4 shadow-sm">
             <div className="grid gap-3 md:grid-cols-6">
               <label className="md:col-span-2">
-                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
-                  KEYWORD
-                </div>
+                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">KEYWORD</div>
                 <input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
@@ -488,9 +526,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
               </label>
 
               <label>
-                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
-                  COUNTRY
-                </div>
+                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">COUNTRY</div>
                 <select
                   value={country}
                   onChange={(e) => {
@@ -508,14 +544,8 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
               </label>
 
               <label>
-                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
-                  CITY
-                </div>
-                <select
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
-                >
+                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">CITY</div>
+                <select value={city} onChange={(e) => setCity(e.target.value)} className="w-full rounded-xl border bg-white px-3 py-2 text-sm">
                   {cityOptions.map((o) => (
                     <option key={o} value={o}>
                       {o}
@@ -525,27 +555,13 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
               </label>
 
               <label>
-                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
-                  DATE FROM
-                </div>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
-                />
+                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">DATE FROM</div>
+                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-full rounded-xl border bg-white px-3 py-2 text-sm" />
               </label>
 
               <label>
-                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">
-                  DATE TO
-                </div>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
-                />
+                <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">DATE TO</div>
+                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-full rounded-xl border bg-white px-3 py-2 text-sm" />
               </label>
 
               <div className="md:col-span-6 flex justify-end">
@@ -563,54 +579,20 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
       </div>
 
       {!grouped.length ? (
-        <div className="mt-5 rounded-2xl border bg-white p-5 text-sm text-zinc-600">
-          No matches — try clearing filters or widening your date range.
-        </div>
+        <div className="mt-5 rounded-2xl border bg-white p-5 text-sm text-zinc-600">No matches — try clearing filters or widening your date range.</div>
       ) : (
         <div className="mt-6 space-y-4">
           {grouped.map((cg, cIdx) => {
             const prevCountry = cIdx > 0 ? grouped[cIdx - 1]?.country : null;
             const showCountryTravel = Boolean(prevCountry) && prevCountry !== cg.country;
 
-            const countryRangeLabel =
-              cg.range ? rangeLabel(cg.range.start, cg.range.end, true) : null;
+            const countryRangeLabel = cg.range ? rangeLabel(cg.range.start, cg.range.end, true) : null;
 
             return (
               <div key={`country-${cg.country}`} className="space-y-3">
-                {/* Travel break */}
+                {/* Travel break (compact) */}
                 {showCountryTravel ? (
-                  <div className="rounded-2xl border bg-white/80 backdrop-blur px-4 py-3 shadow-sm relative overflow-hidden">
-                    <div
-                      className="pointer-events-none absolute inset-0 opacity-35"
-                      style={{
-                        background: `linear-gradient(90deg,
-                          hsla(${accentHueFromCountry(prevCountry || "")}, 80%, 65%, 0.10),
-                          hsla(${cg.hue}, 80%, 65%, 0.10)
-                        )`,
-                      }}
-                    />
-                    <div className="relative flex items-center gap-3">
-                      <span
-                        className="rounded-full border p-2 shadow-sm"
-                        style={{
-                          background: `radial-gradient(circle at 30% 30%, hsla(${cg.hue}, 85%, 66%, 0.92), hsla(${cg.hue}, 85%, 45%, 0.92))`,
-                          borderColor: `hsla(${cg.hue}, 60%, 55%, 0.25)`,
-                          color: "white",
-                        }}
-                      >
-                        <PlaneIcon className="h-4 w-4" />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
-                          TRAVEL
-                        </div>
-                        <div className="text-sm font-semibold text-zinc-900">
-                          Flight to {cg.country}
-                        </div>
-                        <div className="text-xs text-zinc-500">from {prevCountry}</div>
-                      </div>
-                    </div>
-                  </div>
+                  <TravelRow kind="travel" hue={cg.hue} title={`Flight to ${cg.country}`} subtitle={`from ${prevCountry}`} />
                 ) : null}
 
                 {/* Country pill */}
@@ -618,36 +600,33 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                   <summary className="cursor-pointer list-none px-5 py-4">
                     <div className="flex items-center gap-3">
                       <AccentDot hue={cg.hue} />
+
                       <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="text-sm font-semibold text-zinc-900 truncate">
-                          {cg.country}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="text-sm font-semibold text-zinc-900 truncate">{cg.country}</div>
+
+                          {countryRangeLabel ? (
+                            <span
+                              className="rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm"
+                              style={{
+                                background: `linear-gradient(135deg, hsla(${cg.hue}, 70%, 92%, 0.92), hsla(${cg.hue}, 70%, 96%, 0.92))`,
+                                borderColor: `hsla(${cg.hue}, 60%, 55%, 0.22)`,
+                                color: `hsla(${cg.hue}, 30%, 18%, 0.95)`,
+                              }}
+                            >
+                              {countryRangeLabel}
+                            </span>
+                          ) : null}
                         </div>
 
-                        {countryRangeLabel ? (
-                          <span
-                            className="rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm"
-                            style={{
-                              background: `linear-gradient(135deg, hsla(${cg.hue}, 70%, 92%, 0.92), hsla(${cg.hue}, 70%, 96%, 0.92))`,
-                              borderColor: `hsla(${cg.hue}, 60%, 55%, 0.22)`,
-                              color: `hsla(${cg.hue}, 30%, 18%, 0.95)`,
-                            }}
-                          >
-                            {countryRangeLabel}
-                          </span>
-                        ) : null}
-                      </div>
-
-                      <div className="text-xs text-zinc-500">
-                        {cg.cities.length} cit{cg.cities.length === 1 ? "y" : "ies"} ·{" "}
-                        {cg.allItems.length} post{cg.allItems.length === 1 ? "" : "s"}
-                      </div>
-
+                        <div className="text-xs text-zinc-500">
+                          {cg.cities.length} cit{cg.cities.length === 1 ? "y" : "ies"} · {cg.allItems.length} post{cg.allItems.length === 1 ? "" : "s"}
+                        </div>
                       </div>
 
                       <span className="ml-auto inline-flex items-center gap-1 rounded-full border bg-zinc-50 px-2 py-0.5 text-xs text-zinc-700">
                         <span>Expand</span>
-                        <span className="ml-1" aria-hidden>
+                        <span className="ml-1 transition-transform duration-200 group-open:rotate-180" aria-hidden>
                           ▾
                         </span>
                       </span>
@@ -660,74 +639,44 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                       const showTransit = Boolean(prevCity) && prevCity !== cityGroup.city;
 
                       const locTags = buildLocationTags(cityGroup.allItems);
-
-                      const cityRangeLabel =
-                        cityGroup.range ? rangeLabel(cityGroup.range.start, cityGroup.range.end, false) : null;
-
+                      const cityRangeLabel = cityGroup.range ? rangeLabel(cityGroup.range.start, cityGroup.range.end, false) : null;
                       const nightsLabel = `${cityGroup.nights} night${cityGroup.nights === 1 ? "" : "s"}`;
 
                       return (
                         <div key={`city-${cg.country}-${cityGroup.city}`} className="space-y-3">
-                          {showTransit ? (
-                            <div className="rounded-2xl border bg-white/70 backdrop-blur px-4 py-3 shadow-sm">
-                              <div className="flex items-center gap-3">
-                                <span
-                                  className="rounded-full border p-2 shadow-sm"
-                                  style={{
-                                    background: `radial-gradient(circle at 30% 30%, hsla(${cg.hue}, 85%, 66%, 0.92), hsla(${cg.hue}, 85%, 45%, 0.92))`,
-                                    borderColor: `hsla(${cg.hue}, 60%, 55%, 0.25)`,
-                                    color: "white",
-                                  }}
-                                >
-                                  <CarIcon className="h-4 w-4" />
-                                </span>
-                                <div className="min-w-0">
-                                  <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
-                                    TRANSIT
-                                  </div>
-                                  <div className="text-sm font-semibold text-zinc-900">
-                                    {prevCity} → {cityGroup.city}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ) : null}
+                          {/* Transit break (compact) */}
+                          {showTransit ? <TravelRow kind="transit" hue={cg.hue} title={`${prevCity} → ${cityGroup.city}`} subtitle={cg.country} /> : null}
 
                           <details className="group/city rounded-2xl border bg-white shadow-sm overflow-hidden">
                             <summary className="cursor-pointer list-none px-4 py-4">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <div className="text-sm font-semibold text-zinc-900">
-                                    {cityGroup.city}
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <div className="text-sm font-semibold text-zinc-900">{cityGroup.city}</div>
+
+                                    {cityRangeLabel ? (
+                                      <span
+                                        className="rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm"
+                                        style={{
+                                          background: `linear-gradient(135deg, hsla(${cg.hue}, 70%, 92%, 0.92), hsla(${cg.hue}, 70%, 96%, 0.92))`,
+                                          borderColor: `hsla(${cg.hue}, 60%, 55%, 0.22)`,
+                                          color: `hsla(${cg.hue}, 30%, 18%, 0.95)`,
+                                        }}
+                                      >
+                                        {cityRangeLabel}
+                                      </span>
+                                    ) : null}
+
+                                    <span className="rounded-full border bg-white px-2.5 py-1 text-[11px] font-semibold text-zinc-700 shadow-sm">{nightsLabel}</span>
                                   </div>
 
-                                  {cityRangeLabel ? (
-                                    <span
-                                      className="rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm"
-                                      style={{
-                                        background: `linear-gradient(135deg, hsla(${cg.hue}, 70%, 92%, 0.92), hsla(${cg.hue}, 70%, 96%, 0.92))`,
-                                        borderColor: `hsla(${cg.hue}, 60%, 55%, 0.22)`,
-                                        color: `hsla(${cg.hue}, 30%, 18%, 0.95)`,
-                                      }}
-                                    >
-                                      {cityRangeLabel}
-                                    </span>
-                                  ) : null}
-
-                                  <span className="rounded-full border bg-white px-2.5 py-1 text-[11px] font-semibold text-zinc-700 shadow-sm">
-                                    {nightsLabel}
-                                  </span>
-                                </div>
-
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  {locTags.slice(0, 3).map((t, i) => (
-                                    <AccentTag key={`tag-${cityGroup.city}-${i}`} hue={cg.hue}>
-                                      {t}
-                                    </AccentTag>
-                                  ))}
-                                </div>
-
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {locTags.slice(0, 3).map((t, i) => (
+                                      <AccentTag key={`tag-${cityGroup.city}-${i}`} hue={cg.hue}>
+                                        {t}
+                                      </AccentTag>
+                                    ))}
+                                  </div>
                                 </div>
 
                                 <span className="shrink-0 inline-flex items-center gap-1 rounded-full border bg-zinc-50 px-2 py-0.5 text-xs text-zinc-700">
@@ -740,17 +689,16 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                             </summary>
 
                             <div className="border-t px-4 pb-5 pt-5">
-                              <div className="grid gap-4 md:grid-cols-2">
-                                {/* LEFT: Where we stayed */}
+                              {/* make 2-col only on lg to reduce overall footprint */}
+                              <div className="grid gap-4 lg:grid-cols-2">
+                                {/* LEFT: Where we stayed (compact) */}
                                 <div className="space-y-4">
-                                  <div className="rounded-2xl border bg-gradient-to-br from-zinc-50 to-white p-4">
-                                    <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
-                                      WHERE WE STAYED
-                                    </div>
+                                  <div className="rounded-xl border bg-gradient-to-br from-zinc-50 to-white p-3">
+                                    <div className="text-[11px] font-semibold tracking-wide text-zinc-500">WHERE WE STAYED</div>
 
                                     {cityGroup.accommodations.names.length ? (
                                       <>
-                                        <div className="mt-2 text-base font-semibold text-zinc-900">
+                                        <div className="mt-1 text-sm font-semibold text-zinc-900">
                                           {cityGroup.accommodations.names.join(" • ")}
                                         </div>
 
@@ -759,7 +707,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                                             {cityGroup.accommodations.types.map((t, i) => (
                                               <span
                                                 key={`acct-${cityGroup.city}-${i}`}
-                                                className="rounded-full border bg-white px-2.5 py-1 text-xs text-zinc-700 shadow-sm"
+                                                className="rounded-full border bg-white px-2.5 py-1 text-[11px] font-semibold text-zinc-700 shadow-sm"
                                               >
                                                 {t}
                                               </span>
@@ -768,8 +716,8 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                                         ) : null}
 
                                         {cityGroup.accommodations.links.length ? (
-                                          <div className="mt-3 space-y-1">
-                                            {cityGroup.accommodations.links.slice(0, 3).map((href, i) => (
+                                          <div className="mt-2 space-y-1">
+                                            {cityGroup.accommodations.links.slice(0, 2).map((href, i) => (
                                               <a
                                                 key={`accl-${cityGroup.city}-${i}`}
                                                 href={href}
@@ -784,53 +732,32 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                                         ) : null}
                                       </>
                                     ) : (
-                                      <div className="mt-2 text-sm text-zinc-500">
-                                        Add an accommodation name in the post to show it here.
-                                      </div>
+                                      <div className="mt-2 text-sm text-zinc-500">Add an accommodation name in the post to show it here.</div>
                                     )}
                                   </div>
                                 </div>
 
-                                {/* RIGHT: Posts grouped by day */}
-                                <div className="rounded-2xl border bg-gradient-to-b from-white to-zinc-50 p-4">
-                                  <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
-                                    POSTS
-                                  </div>
+                                {/* RIGHT: Posts grouped by day (compact) */}
+                                <div className="rounded-xl border bg-gradient-to-b from-white to-zinc-50 p-3">
+                                  <div className="text-[11px] font-semibold tracking-wide text-zinc-500">POSTS</div>
 
-                                  <div className="mt-3 space-y-4">
+                                  <div className="mt-3 space-y-3">
                                     {cityGroup.days.map((dg) => (
-                                      <div
-                                        key={`posts-${cityGroup.city}-${dg.key}`}
-                                        className="rounded-2xl border bg-white p-3 shadow-sm"
-                                      >
+                                      <div key={`posts-${cityGroup.city}-${dg.key}`} className="rounded-xl border bg-white px-3 py-2">
                                         <div className="flex items-center gap-2">
-                                          <span
-                                            className="inline-flex h-2 w-2 rounded-full"
-                                            style={{ background: `hsla(${cg.hue}, 85%, 45%, 0.9)` }}
-                                          />
-                                          <div className="text-sm font-semibold text-zinc-900">
-                                            {formatDayLabel(dg.day)}
-                                          </div>
+                                          <span className="inline-flex h-2 w-2 rounded-full" style={{ background: `hsla(${cg.hue}, 85%, 45%, 0.9)` }} />
+                                          <div className="text-sm font-semibold text-zinc-900">{formatDayLabel(dg.day)}</div>
                                           <span className="ml-auto text-xs text-zinc-500">
                                             {dg.items.length} post{dg.items.length === 1 ? "" : "s"}
                                           </span>
                                         </div>
 
-                                        <div className="mt-3 space-y-2">
+                                        <div className="mt-2 space-y-2">
                                           {dg.items.map((p) => (
-                                            <div
-                                              key={p._id}
-                                              className="flex items-start justify-between gap-3 rounded-xl border bg-white px-3 py-3"
-                                            >
+                                            <div key={p._id} className="flex items-center justify-between gap-3 rounded-lg border bg-zinc-50 px-3 py-2">
                                               <div className="min-w-0">
-                                                <div className="truncate text-sm font-semibold text-zinc-900">
-                                                  {p.title}
-                                                </div>
-                                                {p.excerpt ? (
-                                                  <div className="mt-1 line-clamp-2 text-sm text-zinc-600">
-                                                    {p.excerpt}
-                                                  </div>
-                                                ) : null}
+                                                <div className="truncate text-sm font-semibold text-zinc-900">{p.title}</div>
+                                                {p.excerpt ? <div className="mt-0.5 line-clamp-1 text-xs text-zinc-600">{p.excerpt}</div> : null}
                                               </div>
 
                                               <Link
