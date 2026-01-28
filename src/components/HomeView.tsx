@@ -678,7 +678,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                       return (
                         <div key={`city-${cg.country}-${cityGroup.city}`} className="space-y-3">
                           {showTransit ? (
-                            <TravelRow kind="transit" hue={cg.hue} title={`${prevCity} → ${cityGroup.city}`} subtitle={cg.country} />
+                            <TravelRow kind="transit" hue={cg.hue} title={`${prevCity} → ${cityGroup.city}`}/>
                           ) : null}
 
                           <details className="group/city rounded-2xl border bg-zinc-50/80 backdrop-blur shadow-sm overflow-hidden">
@@ -718,11 +718,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                             </summary>
 
                             <div className="border-t px-4 pb-5 pt-5">
-                              {/* ✅ 3) Soft section header band */}
-                              <div className="mb-3 flex items-center justify-between rounded-xl bg-zinc-50/70 px-3 py-2">
-                                <div className="text-xs font-semibold text-zinc-700">Stays</div>
-                                <div className="text-[11px] text-zinc-500">{cityGroup.allItems.length} posts</div>
-                              </div>
 
                               <div className="space-y-3">
                                 {(() => {
