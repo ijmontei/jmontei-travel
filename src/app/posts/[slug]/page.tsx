@@ -161,54 +161,6 @@ export default async function PostPage({ params }: PageProps) {
                     </a>
                   </div>
                 ) : null}
-
-                {post.accommodation.notes ? (
-                  <div className="mt-2 text-sm text-zinc-600">{post.accommodation.notes}</div>
-                ) : null}
-              </div>
-            ) : null}
-
-            {}
-            {post.activities?.length ? (
-              <div>
-                <div className="text-xs font-semibold text-zinc-500">ACTIVITIES</div>
-                <ul className="mt-2 space-y-2">
-                  {post.activities.map((a, idx) => {
-                    const label = cleanLabel([a.timeOfDay, a.category]);
-                    return (
-                      <li
-                        key={`${post._id}-activity-${idx}`}
-                        className="rounded-xl border bg-white p-3"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="font-medium text-zinc-900">
-                            {a.title ?? "Activity"}
-                          </div>
-                          {label ? (
-                            <span className="text-xs rounded-full border bg-zinc-50 px-2 py-0.5 text-zinc-600">
-                              {label}
-                            </span>
-                          ) : null}
-                        </div>
-
-                        {a.notes ? <div className="mt-1 text-sm text-zinc-600">{a.notes}</div> : null}
-
-                        {a.link ? (
-                          <div className="mt-2">
-                            <a
-                              href={a.link}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-sm text-zinc-700 underline underline-offset-4 hover:text-zinc-900"
-                            >
-                              Link ↗
-                            </a>
-                          </div>
-                        ) : null}
-                      </li>
-                    );
-                  })}
-                </ul>
               </div>
             ) : null}
         </section>
