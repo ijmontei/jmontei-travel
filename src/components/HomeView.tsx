@@ -172,27 +172,6 @@ function AccentDot({ hue }: { hue: number }) {
   );
 }
 
-function AccentTag({
-  hue,
-  children,
-}: {
-  hue: number;
-  children: React.ReactNode;
-}) {
-  return (
-    <span
-      className="rounded-full border px-2.5 py-1 text-xs shadow-sm"
-      style={{
-        background: `linear-gradient(135deg, hsla(${hue}, 70%, 92%, 0.92), hsla(${hue}, 70%, 96%, 0.92))`,
-        borderColor: `hsla(${hue}, 60%, 55%, 0.22)`,
-        color: `hsla(${hue}, 30%, 18%, 0.95)`,
-      }}
-    >
-      {children}
-    </span>
-  );
-}
-
 function rangeLabel(d1: Date, d2: Date, includeYear: boolean) {
   if (d1.getTime() === d2.getTime()) {
     return includeYear ? formatShortDateWithYear(d1) : formatShortDate(d1);
@@ -229,12 +208,10 @@ function TravelRow({
 }) {
   return (
     <div className="relative pl-12">
-      {/* timeline dot */}
       <div className="absolute left-[8px] top-3">
         <AccentDot hue={hue} />
       </div>
 
-      {/* thin dashed line */}
       <div className="absolute left-[14px] top-0 h-full w-px border-l border-dashed border-zinc-300/70" />
 
       <div className="flex items-center gap-3 rounded-xl border bg-zinc-50/70 px-3 py-2 text-sm shadow-sm">
@@ -246,11 +223,7 @@ function TravelRow({
             color: "white",
           }}
         >
-          {kind === "travel" ? (
-            <PlaneIcon className="h-4 w-4" />
-          ) : (
-            <CarIcon className="h-4 w-4" />
-          )}
+          {kind === "travel" ? <PlaneIcon className="h-4 w-4" /> : <CarIcon className="h-4 w-4" />}
         </span>
 
         <div className="min-w-0">
@@ -275,36 +248,19 @@ type CityGroup = {
   nights: number;
   range: { start: Date; end: Date } | null;
 };
-function flattenDays(days: DayGroup[]) {
-  return days.flatMap((dg) =>
-    dg.items.map((p) => ({
-      post: p,
-      day: dg.day,
-      dayKey: dg.key,
-    }))
-  );
-}
 
-type FlatPost = { post: Post; day: Date; dayKey: string };
 function normText(v?: string | null) {
   return (v ?? "")
     .trim()
     .toLowerCase()
-    .replace(/\s+/g, " "); // collapse repeated spaces
+    .replace(/\s+/g, " ");
 }
-
 function normLink(v?: string | null) {
-  return (v ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/\/+$/, ""); // remove trailing slash(es)
+  return (v ?? "").trim().toLowerCase().replace(/\/+$/, "");
 }
 
 function groupPostsByAccommodation(items: Post[]) {
-  const m = new Map<
-    string,
-    { acc: any; posts: Post[]; firstDate: number }
-  >();
+  const m = new Map<string, { acc: any; posts: Post[]; firstDate: number }>();
 
   for (const p of items) {
     const acc = (p as any).accommodation ?? null;
@@ -317,95 +273,36 @@ function groupPostsByAccommodation(items: Post[]) {
     const type = normText(rawType);
     const link = normLink(rawLink);
 
-    // ✅ KEY CHANGE:
-    // If a name exists, group by name (ignore type/link differences).
-    // If no name, fall back to link.
-    // Only use "__no_acc__" if both are missing.
-    const key = name
-      ? `name:${name}`
-      : link
-        ? `link:${link}`
-        : "__no_acc__";
+    const key = name ? `name:${name}` : link ? `link:${link}` : "__no_acc__";
 
     const ts = safeDate((p as any).publishedAt)?.getTime() ?? 0;
 
-    if (!m.has(key)) m.set(key, { acc, posts: [], firstDate: ts });
+    if (!m.has(key)) m.set(key, { acc: { ...acc }, posts: [], firstDate: ts });
     const g = m.get(key)!;
 
     g.posts.push(p);
     g.firstDate = Math.min(g.firstDate, ts);
 
-    // keep the “best” acc info we’ve seen so far (first non-empty wins)
+    // Keep “best” acc info we’ve seen (prefer first non-empty)
     if (!g.acc?.name && rawName) g.acc.name = rawName;
     if (!g.acc?.type && rawType) g.acc.type = rawType;
     if (!g.acc?.link && rawLink) g.acc.link = rawLink;
+
+    // Also prefer a type if the group has a name but this entry has it
+    if (name && !g.acc?.type && type) g.acc.type = rawType;
+    if (name && !g.acc?.link && link) g.acc.link = rawLink;
   }
 
   const groups = Array.from(m.values()).map((g) => ({
     ...g,
     posts: [...g.posts].sort(
       (a: any, b: any) =>
-        (safeDate(a.publishedAt)?.getTime() ?? 0) -
-        (safeDate(b.publishedAt)?.getTime() ?? 0)
+        (safeDate(a.publishedAt)?.getTime() ?? 0) - (safeDate(b.publishedAt)?.getTime() ?? 0)
     ),
   }));
 
   groups.sort((a, b) => a.firstDate - b.firstDate);
   return groups;
-}
-
-
-type StayCard = {
-  key: string;
-  name: string;
-  type?: string | null;
-  link?: string | null;
-  firstTs: number;
-  items: Array<{ post: Post; day: Date; ts: number }>;
-};
-
-function buildStayCards(flat: FlatPost[]): StayCard[] {
-  const map = new Map<string, StayCard>();
-
-  for (const { post, day } of flat) {
-    const acc = (post as any).accommodation || null;
-    const name = (acc?.name || "").trim();
-    const type = (acc?.type || "").trim();
-    const link = (acc?.link || "").trim();
-
-    const hasAcc = Boolean(name || link || type);
-    const key = hasAcc ? `${name}||${type}||${link}` : "__no_accommodation__";
-    const label = hasAcc ? (name || "Accommodation") : "No accommodation";
-
-    const ts =
-      safeDate((post as any).publishedAt as string)?.getTime() ??
-      day.getTime();
-
-    if (!map.has(key)) {
-      map.set(key, {
-        key,
-        name: label,
-        type: hasAcc ? (type || null) : null,
-        link: hasAcc ? (link || null) : null,
-        firstTs: ts,
-        items: [],
-      });
-    }
-
-    const g = map.get(key)!;
-    g.items.push({ post, day, ts });
-    g.firstTs = Math.min(g.firstTs, ts);
-  }
-
-  // Sort stays by earliest post date, and posts inside by date
-  const stays = Array.from(map.values())
-    .map((g) => ({
-      ...g,
-      items: [...g.items].sort((a, b) => a.ts - b.ts),
-    }))
-    .sort((a, b) => a.firstTs - b.firstTs);
-
-  return stays;
 }
 
 type CountryGroup = {
@@ -417,7 +314,6 @@ type CountryGroup = {
 };
 
 function ItineraryPanel({ posts }: { posts: Post[] }) {
-  // Filters
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [country, setCountry] = useState<string>("All");
   const [city, setCity] = useState<string>("All");
@@ -426,15 +322,15 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
   const [q, setQ] = useState<string>("");
 
   const countryOptions = useMemo(() => {
-    return ["All", ...uniq(posts.map((p) => (p.country || "").trim()).filter(Boolean) as string[])].sort(
-      (a, b) => a.localeCompare(b)
+    return ["All", ...uniq(posts.map((p) => (p.country || "").trim()).filter(Boolean) as string[])].sort((a, b) =>
+      a.localeCompare(b)
     );
   }, [posts]);
 
   const cityOptions = useMemo(() => {
     const base = country === "All" ? posts : posts.filter((p) => (p.country || "").trim() === country);
-    return ["All", ...uniq(base.map((p: any) => (p.city || "").trim()).filter(Boolean) as string[])].sort(
-      (a, b) => a.localeCompare(b)
+    return ["All", ...uniq(base.map((p: any) => (p.city || "").trim()).filter(Boolean) as string[])].sort((a, b) =>
+      a.localeCompare(b)
     );
   }, [posts, country]);
 
@@ -459,7 +355,10 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
       }
 
       if (q.trim()) {
-        const hay = [p.title, p.excerpt, p.bodyText, ctry, cty].filter(Boolean).join(" ").toLowerCase();
+        const hay = [p.title, p.excerpt, p.bodyText, ctry, cty]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
         if (!hay.includes(q.trim().toLowerCase())) return false;
       }
 
@@ -479,7 +378,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
   };
 
   const grouped = useMemo<CountryGroup[]>(() => {
-    // Sort oldest → newest to preserve “route” ordering
     const ordered = [...filtered]
       .filter((p: any) => Boolean(safeDate(p.publishedAt)))
       .sort(
@@ -529,26 +427,16 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
           }))
           .sort((a, b) => a.day.getTime() - b.day.getTime());
 
-        const accommodationNames = uniq(
-          cityPosts.map((p: any) => p.accommodation?.name).filter(Boolean) as string[]
-        );
-        const accommodationTypes = uniq(
-          cityPosts.map((p: any) => p.accommodation?.type).filter(Boolean) as string[]
-        );
-        const accommodationLinks = uniq(
-          cityPosts.map((p: any) => p.accommodation?.link).filter(Boolean) as string[]
-        );
-
         const cityRange = dateRangeFromPosts(cityPosts);
-        const nights = days.length; // unique date count
+        const nights = days.length;
 
         cities.push({
           city: cty,
           days,
           accommodations: {
-            names: accommodationNames,
-            types: accommodationTypes,
-            links: accommodationLinks,
+            names: [],
+            types: [],
+            links: [],
           },
           allItems: cityPosts,
           nights,
@@ -569,7 +457,19 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
   }, [filtered]);
 
   return (
-    <section className="mt-6 rounded-3xl border bg-gradient-to-b from-white to-zinc-50/70 p-4 sm:p-5">
+    <section className="relative mt-6 overflow-hidden rounded-3xl border bg-gradient-to-b from-zinc-50/90 via-white/70 to-zinc-100/60 p-4 sm:p-5">
+      {/* subtle texture overlay */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.18]"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 1px 1px, rgba(0,0,0,0.18) 1px, transparent 0)",
+          backgroundSize: "18px 18px",
+        }}
+        aria-hidden="true"
+      />
+      {/* content wrapper sits ABOVE texture */}
+    <div className="relative">
       <div className="flex flex-col gap-2">
         <h3 className="text-xl font-semibold tracking-tight">Itinerary</h3>
       </div>
@@ -663,7 +563,11 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
 
               <label>
                 <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">CITY</div>
-                <select value={city} onChange={(e) => setCity(e.target.value)} className="w-full rounded-xl border bg-white px-3 py-2 text-sm">
+                <select
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                >
                   {cityOptions.map((o) => (
                     <option key={o} value={o}>
                       {o}
@@ -674,12 +578,22 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
 
               <label>
                 <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">DATE FROM</div>
-                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-full rounded-xl border bg-white px-3 py-2 text-sm" />
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                />
               </label>
 
               <label>
                 <div className="mb-1 text-[11px] font-semibold tracking-wide text-zinc-500">DATE TO</div>
-                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-full rounded-xl border bg-white px-3 py-2 text-sm" />
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                />
               </label>
 
               <div className="md:col-span-6 flex justify-end">
@@ -697,24 +611,24 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
       </div>
 
       {!grouped.length ? (
-        <div className="mt-5 rounded-2xl border bg-white p-5 text-sm text-zinc-600">No matches — try clearing filters or widening your date range.</div>
+        <div className="mt-5 rounded-2xl border bg-white p-5 text-sm text-zinc-600">
+          No matches — try clearing filters or widening your date range.
+        </div>
       ) : (
         <div className="mt-6 space-y-4">
           {grouped.map((cg, cIdx) => {
             const prevCountry = cIdx > 0 ? grouped[cIdx - 1]?.country : null;
             const showCountryTravel = Boolean(prevCountry) && prevCountry !== cg.country;
-
             const countryRangeLabel = cg.range ? rangeLabel(cg.range.start, cg.range.end, true) : null;
 
             return (
               <div key={`country-${cg.country}`} className="space-y-3">
-                {/* Travel break (compact) */}
                 {showCountryTravel ? (
                   <TravelRow kind="travel" hue={cg.hue} title={`Flight to ${cg.country}`} subtitle={`from ${prevCountry}`} />
                 ) : null}
 
-                {/* Country pill */}
-                <details className="group rounded-2xl border bg-white/70 backdrop-blur shadow-sm overflow-hidden">
+                {/* ✅ 2) Slightly translucent large containers */}
+                <details className="group rounded-2xl border bg-zinc-50/80 backdrop-blur shadow-sm overflow-hidden">
                   <summary className="cursor-pointer list-none px-5 py-4">
                     <div className="flex items-center gap-3">
                       <AccentDot hue={cg.hue} />
@@ -738,7 +652,8 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                         </div>
 
                         <div className="text-xs text-zinc-500">
-                          {cg.cities.length} cit{cg.cities.length === 1 ? "y" : "ies"} · {cg.allItems.length} post{cg.allItems.length === 1 ? "" : "s"}
+                          {cg.cities.length} cit{cg.cities.length === 1 ? "y" : "ies"} · {cg.allItems.length} post
+                          {cg.allItems.length === 1 ? "" : "s"}
                         </div>
                       </div>
 
@@ -752,7 +667,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                     </div>
                   </summary>
 
-                  <div className="border-t px-5 py-5 space-y-4">
+                  <div className="border-t bg-white/40 px-5 py-5 space-y-4">
                     {cg.cities.map((cityGroup, cityIdx) => {
                       const prevCity = cityIdx > 0 ? cg.cities[cityIdx - 1]?.city : null;
                       const showTransit = Boolean(prevCity) && prevCity !== cityGroup.city;
@@ -762,10 +677,11 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
 
                       return (
                         <div key={`city-${cg.country}-${cityGroup.city}`} className="space-y-3">
-                          {/* Transit break (compact) */}
-                          {showTransit ? <TravelRow kind="transit" hue={cg.hue} title={`${prevCity} → ${cityGroup.city}`} subtitle={cg.country} /> : null}
+                          {showTransit ? (
+                            <TravelRow kind="transit" hue={cg.hue} title={`${prevCity} → ${cityGroup.city}`} subtitle={cg.country} />
+                          ) : null}
 
-                          <details className="group/city rounded-2xl border bg-white/70 backdrop-blur shadow-sm overflow-hidden">
+                          <details className="group/city rounded-2xl border bg-zinc-50/80 backdrop-blur shadow-sm overflow-hidden">
                             <summary className="cursor-pointer list-none px-4 py-4">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
@@ -785,11 +701,13 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                                       </span>
                                     ) : null}
 
-                                    <span className="rounded-full border bg-white px-2.5 py-1 text-[11px] font-semibold text-zinc-700 shadow-sm">{nightsLabel}</span>
+                                    <span className="rounded-full border bg-white px-2.5 py-1 text-[11px] font-semibold text-zinc-700 shadow-sm">
+                                      {nightsLabel}
+                                    </span>
                                   </div>
                                 </div>
 
-                                <span className="shrink-0 inline-flex items-center gap-1 rounded-full border bg-zinc-50 px-2 py-0.5 text-xs text-zinc-700">
+                                <span className="shrink-0 inline-flex items-center gap-1 rounded-full border bg-white/40 px-2 py-0.5 text-xs text-zinc-600">
                                   <span className="group-open/city:hidden">Expand</span>
                                   <span className="hidden group-open/city:inline">Collapse</span>
                                   <span className="transition-transform duration-200 group-open/city:rotate-180" aria-hidden>
@@ -800,7 +718,12 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                             </summary>
 
                             <div className="border-t px-4 pb-5 pt-5">
-                              {/* ONE unified panel: stay cards + posts */}
+                              {/* ✅ 3) Soft section header band */}
+                              <div className="mb-3 flex items-center justify-between rounded-xl bg-zinc-50/70 px-3 py-2">
+                                <div className="text-xs font-semibold text-zinc-700">Stays</div>
+                                <div className="text-[11px] text-zinc-500">{cityGroup.allItems.length} posts</div>
+                              </div>
+
                               <div className="space-y-3">
                                 {(() => {
                                   const accGroups = groupPostsByAccommodation(cityGroup.allItems);
@@ -813,85 +736,82 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                                         const accLink = (acc?.link || "").trim();
 
                                         const hasAcc = Boolean(accName || accType || accLink);
-                                        const chipLabel = [
-                                          "Accommodation:",
-                                          accName || "View",
-                                          accType ? `• ${accType}` : "",
-                                        ]
+                                        const chipLabel = ["Accommodation:", accName || "View", accType ? `• ${accType}` : ""]
                                           .filter(Boolean)
                                           .join(" ");
 
                                         return (
+                                          // ✅ 4) Remove inner borders: use ring instead
                                           <div
                                             key={`acc-group-${gi}`}
-                                            className="relative overflow-hidden rounded-2xl border bg-white/60 shadow-sm"
+                                            className="relative overflow-hidden rounded-2xl border bg-white/45 shadow-sm"
                                           >
                                             <div
                                               className="absolute left-0 top-0 h-full w-1"
                                               style={{ background: `hsla(${cg.hue}, 85%, 45%, 0.7)` }}
                                               aria-hidden
                                             />
-                                            <div className="pl-3"> 
-                                            {/* Post rows inside ONE group card */}
-                                            <div className="divide-y">
-                                              {posts.map((p) => {
-                                                const dt = safeDate((p as any).publishedAt);
-                                                return (
-                                                  <div
-                                                    key={p._id}
-                                                    className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-white/50 transition"
-                                                  >
-                                                    <div className="min-w-0">
-                                                      <div className="truncate text-sm font-semibold text-zinc-900">
-                                                        {p.title}
-                                                      </div>
 
-                                                      <div className="mt-1 flex items-center gap-2 text-[11px] text-zinc-500">
-                                                        <span
-                                                          className="inline-flex h-1.5 w-1.5 rounded-full"
-                                                          style={{ background: `hsla(${cg.hue}, 85%, 45%, 0.9)` }}
-                                                          aria-hidden
-                                                        />
-                                                        <span className="truncate">{dt ? formatDayLabel(dt) : ""}</span>
-                                                      </div>
-                                                    </div>
-
-                                                    <Link
-                                                      href={`/posts/${p.slug}`}
-                                                      className="shrink-0 rounded-full border bg-[#414141] px-3 py-1 text-xs font-semibold text-[#f5de88] hover:opacity-90"
+                                            <div className="pl-3">
+                                              {/* ✅ 5) Zebra rows (break up white + more scannable) */}
+                                              <div className="overflow-hidden rounded-2xl">
+                                                {posts.map((p, idx) => {
+                                                  const dt = safeDate((p as any).publishedAt);
+                                                  return (
+                                                    <div
+                                                      key={p._id}
+                                                      className={[
+                                                        "flex items-center justify-between gap-4 px-4 py-3 transition",
+                                                        idx % 2 === 0 ? "bg-white/40" : "bg-white/10",
+                                                        "hover:bg-white/60",
+                                                      ].join(" ")}
                                                     >
-                                                      Read Post →
-                                                    </Link>
-                                                  </div>
-                                                );
-                                              })}
-                                            </div>
+                                                      <div className="min-w-0">
+                                                        <div className="truncate text-sm font-semibold text-zinc-900">{p.title}</div>
 
-                                            {/* Accommodation chip ONCE per group */}
-                                            {hasAcc && accLink ? (
-                                              <div className="border-t bg-white/50 px-4 py-3 flex justify-end">
-                                                <a
-                                                  href={accLink}
-                                                  target="_blank"
-                                                  rel="noreferrer"
-                                                  className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
-                                                  title={accName || "Accommodation"}
-                                                >
-                                                  {chipLabel} ↗
-                                                </a>
+                                                        <div className="mt-1 flex items-center gap-2 text-[11px] text-zinc-500">
+                                                          <span
+                                                            className="inline-flex h-1.5 w-1.5 rounded-full"
+                                                            style={{ background: `hsla(${cg.hue}, 85%, 45%, 0.9)` }}
+                                                            aria-hidden
+                                                          />
+                                                          <span className="truncate">{dt ? formatDayLabel(dt) : ""}</span>
+                                                        </div>
+                                                      </div>
+
+                                                      <Link
+                                                        href={`/posts/${p.slug}`}
+                                                        className="shrink-0 rounded-full border bg-[#414141] px-3 py-1 text-xs font-semibold text-[#f5de88] hover:opacity-90"
+                                                      >
+                                                        Read Post →
+                                                      </Link>
+                                                    </div>
+                                                  );
+                                                })}
                                               </div>
-                                            ) : null}
-                                          </div>
+
+                                              {/* ✅ 6) Accommodation footer feels like a footer (lighter) */}
+                                              {hasAcc && accLink ? (
+                                                <div className="border-t border-black/5 bg-zinc-50/50 px-4 py-3 flex justify-end">
+                                                  <a
+                                                    href={accLink}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+                                                    title={accName || "Accommodation"}
+                                                  >
+                                                    {chipLabel} ↗
+                                                  </a>
+                                                </div>
+                                              ) : null}
+                                            </div>
                                           </div>
                                         );
                                       })}
-
                                     </div>
                                   );
-                                  
                                 })()}
                               </div>
-
                             </div>
                           </details>
                         </div>
@@ -904,9 +824,10 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
           })}
         </div>
       )}
-    </section>
-  );
-}
+    </div>
+  </section>
+);
+        }
 
 /** ---------- HomeView ---------- */
 export function HomeView({ posts }: { posts: Post[] }) {
@@ -936,8 +857,7 @@ export function HomeView({ posts }: { posts: Post[] }) {
       .filter((p) => Boolean(p.publishedAt))
       .sort(
         (a, b) =>
-          new Date(a.publishedAt as string).getTime() -
-          new Date(b.publishedAt as string).getTime()
+          new Date(a.publishedAt as string).getTime() - new Date(b.publishedAt as string).getTime()
       );
 
     const seen = new Set<string>();
@@ -959,18 +879,12 @@ export function HomeView({ posts }: { posts: Post[] }) {
       <div className="mx-auto max-w-5xl px-5 py-10">
         <header className="mb-2">
           <div className="flex justify-center -mt-6">
-            <HeroGlobe
-              visitedCountries={visitedCountries}
-              currentCountry={currentCountry}
-              routeCountries={routeCountries}
-            />
+            <HeroGlobe visitedCountries={visitedCountries} currentCountry={currentCountry} routeCountries={routeCountries} />
           </div>
 
           <div className="mt-3 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="text-xl font-semibold tracking-tight text-[hsl(var(--text))]">
-                Stories and photos from the road.
-              </h2>
+              <h2 className="text-xl font-semibold tracking-tight text-[hsl(var(--text))]">Stories and photos from the road.</h2>
             </div>
 
             <ModeToggle mode={mode} setMode={setMode} />
@@ -988,12 +902,7 @@ export function HomeView({ posts }: { posts: Post[] }) {
                     excerpt={p.excerpt}
                     coverImage={p.coverImage}
                     publishedAt={p.publishedAt}
-                    country={
-                      p.city && p.country
-                        ? `${p.city}, ${p.country}`
-                        : (p.city || p.country)
-                    }
-                    
+                    country={p.city && p.country ? `${p.city}, ${p.country}` : p.city || p.country}
                   />
                 </Reveal>
               ))}
