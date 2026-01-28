@@ -133,7 +133,7 @@ export default async function PostPage({ params }: PageProps) {
         </div>
       ) : null}
 
-      {}
+      <PortableTextRenderer value={post.body} />
       {hasItineraryDetails ? (  
         <section className="mb-8 rounded-2xl border bg-white p-4 sm:p-5">
             {}
@@ -149,10 +149,6 @@ export default async function PostPage({ params }: PageProps) {
                   ) : null}
                 </div>
 
-                {post.accommodation.address ? (
-                  <div className="mt-1 text-sm text-zinc-600">{post.accommodation.address}</div>
-                ) : null}
-
                 {post.accommodation.link ? (
                   <div className="mt-2">
                     <a
@@ -161,7 +157,7 @@ export default async function PostPage({ params }: PageProps) {
                       rel="noreferrer"
                       className="text-sm text-zinc-700 underline underline-offset-4 hover:text-zinc-900"
                     >
-                      View place ↗
+                      View site ↗
                     </a>
                   </div>
                 ) : null}
@@ -217,9 +213,6 @@ export default async function PostPage({ params }: PageProps) {
             ) : null}
         </section>
       ) : null} 
-
-      <PortableTextRenderer value={post.body} />
-
       {/* Carousel gallery (no cropping, preserves aspect ratio) */}
       {post.gallery?.length ? <GalleryCarousel images={post.gallery} /> : null}
     </article>
