@@ -229,6 +229,15 @@ function dateRangeFromPosts(items: Post[]) {
   const end = new Date(times[times.length - 1]);
   return { start, end };
 }
+function flattenDays(days: DayGroup[]) {
+  return days.flatMap((dg) =>
+    dg.items.map((p) => ({
+      post: p,
+      day: dg.day,
+      dayKey: dg.key,
+    }))
+  );
+}
 
 /** Slim travel / transit row */
 function TravelRow({
@@ -737,54 +746,43 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                                   </div>
                                 </div>
 
-                                {/* RIGHT: Posts grouped by day (ultra-compact) */}
+                                {/* RIGHT: Posts (flat list, date under title) */}
                                 <div className="rounded-xl border bg-gradient-to-b from-white to-zinc-50 p-3">
-                                  <div className="text-[11px] font-semibold tracking-wide text-zinc-500">POSTS</div>
+                                  <div className="flex items-center justify-between">
+                                    <div className="text-[11px] font-semibold tracking-wide text-zinc-500">POSTS</div>
+                                    <div className="text-xs text-zinc-500">
+                                      {cityGroup.allItems.length} post{cityGroup.allItems.length === 1 ? "" : "s"}
+                                    </div>
+                                  </div>
 
-                                  <div className="mt-3 space-y-3">
-                                    {cityGroup.days.map((dg) => (
-                                      <div key={`posts-${cityGroup.city}-${dg.key}`} className="rounded-xl border bg-white px-3 py-2">
-                                        {/* Date header */}
-                                        <div className="flex items-center gap-2">
-                                          <span
-                                            className="inline-flex h-2 w-2 rounded-full"
-                                            style={{ background: `hsla(${cg.hue}, 85%, 45%, 0.9)` }}
-                                          />
-                                          <div className="text-sm font-semibold text-zinc-900 truncate">
-                                            {formatDayLabel(dg.day)}
+                                  <div className="mt-3 space-y-2">
+                                    {flattenDays(cityGroup.days).map(({ post: p, day, dayKey }) => (
+                                      <div
+                                        key={`${p._id}-${dayKey}`}
+                                        className="flex items-center justify-between gap-3 rounded-lg border bg-zinc-50 px-3 py-2"
+                                      >
+                                        <div className="min-w-0">
+                                          <div className="truncate text-sm font-semibold text-zinc-900">{p.title}</div>
+                                          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-zinc-500">
+                                            <span
+                                              className="inline-flex h-1.5 w-1.5 rounded-full"
+                                              style={{ background: `hsla(${cg.hue}, 85%, 45%, 0.9)` }}
+                                              aria-hidden
+                                            />
+                                            <span className="truncate">{formatDayLabel(day)}</span>
                                           </div>
-                                          <span className="ml-auto text-xs text-zinc-500">
-                                            {dg.items.length} post{dg.items.length === 1 ? "" : "s"}
-                                          </span>
                                         </div>
 
-                                        {/* One-line posts */}
-                                        <div className="mt-2 space-y-2">
-                                          {dg.items.map((p) => (
-                                            <div
-                                              key={p._id}
-                                              className="flex items-center justify-between gap-3 rounded-lg border bg-zinc-50 px-3 py-2"
-                                            >
-                                              <div className="min-w-0">
-                                                <div className="truncate text-sm font-semibold text-zinc-900">
-                                                  {p.title}
-                                                </div>
-                                              </div>
-
-                                              <Link
-                                                href={`/posts/${p.slug}`}
-                                                className="shrink-0 rounded-full border bg-[#414141] px-3 py-1 text-xs font-semibold text-[#f5de88] hover:opacity-90"
-                                              >
-                                                Open →
-                                              </Link>
-                                            </div>
-                                          ))}
-                                        </div>
+                                        <Link
+                                          href={`/posts/${p.slug}`}
+                                          className="shrink-0 rounded-full border bg-[#414141] px-3 py-1 text-xs font-semibold text-[#f5de88] hover:opacity-90"
+                                        >
+                                          Open →
+                                        </Link>
                                       </div>
                                     ))}
                                   </div>
                                 </div>
-
                               </div>
                             </div>
                           </details>
