@@ -407,10 +407,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
     <section className="mt-6">
       <div className="flex flex-col gap-2">
         <h3 className="text-xl font-semibold tracking-tight">
-          Itinerary{" "}
-          <span className="align-middle text-xs font-semibold tracking-wide text-zinc-500">
-            (country → city)
-          </span>
+          Itinerary
         </h3>
       </div>
 
