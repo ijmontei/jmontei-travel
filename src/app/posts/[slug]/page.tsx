@@ -135,7 +135,7 @@ export default async function PostPage({ params }: PageProps) {
 
       <PortableTextRenderer value={post.body} />
       {hasItineraryDetails ? (  
-        <section className="mb-8 rounded-2xl border bg-white">
+        <section className="mb-8 rounded-2xl border bg-white p-1 sm:p-1">
             {}
             {post.accommodation?.name ? (
               <div className="rounded-xl bg-zinc-50 p-3">
