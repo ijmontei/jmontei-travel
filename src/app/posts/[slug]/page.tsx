@@ -132,6 +132,99 @@ export default async function PostPage({ params }: PageProps) {
           </div>
         </div>
       ) : null}
+    /*
+      {}
+      {hasItineraryDetails ? (  
+        <section className="mb-8 rounded-2xl border bg-white p-4 sm:p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold tracking-tight text-zinc-900">
+              Itinerary details
+            </h2>
+          </div>
+
+          <div className="mt-3 space-y-4">
+            {}
+            {post.accommodation?.name ? (
+              <div className="rounded-xl bg-zinc-50 p-3">
+                <div className="text-xs font-semibold text-zinc-500">ACCOMMODATION</div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <div className="font-medium text-zinc-900">{post.accommodation.name}</div>
+                  {post.accommodation.type ? (
+                    <span className="text-xs rounded-full border bg-white px-2 py-0.5 text-zinc-600">
+                      {post.accommodation.type}
+                    </span>
+                  ) : null}
+                </div>
+
+                {post.accommodation.address ? (
+                  <div className="mt-1 text-sm text-zinc-600">{post.accommodation.address}</div>
+                ) : null}
+
+                {post.accommodation.link ? (
+                  <div className="mt-2">
+                    <a
+                      href={post.accommodation.link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sm text-zinc-700 underline underline-offset-4 hover:text-zinc-900"
+                    >
+                      View place ↗
+                    </a>
+                  </div>
+                ) : null}
+
+                {post.accommodation.notes ? (
+                  <div className="mt-2 text-sm text-zinc-600">{post.accommodation.notes}</div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {}
+            {post.activities?.length ? (
+              <div>
+                <div className="text-xs font-semibold text-zinc-500">ACTIVITIES</div>
+                <ul className="mt-2 space-y-2">
+                  {post.activities.map((a, idx) => {
+                    const label = cleanLabel([a.timeOfDay, a.category]);
+                    return (
+                      <li
+                        key={`${post._id}-activity-${idx}`}
+                        className="rounded-xl border bg-white p-3"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="font-medium text-zinc-900">
+                            {a.title ?? "Activity"}
+                          </div>
+                          {label ? (
+                            <span className="text-xs rounded-full border bg-zinc-50 px-2 py-0.5 text-zinc-600">
+                              {label}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        {a.notes ? <div className="mt-1 text-sm text-zinc-600">{a.notes}</div> : null}
+
+                        {a.link ? (
+                          <div className="mt-2">
+                            <a
+                              href={a.link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-sm text-zinc-700 underline underline-offset-4 hover:text-zinc-900"
+                            >
+                              Link ↗
+                            </a>
+                          </div>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        </section>
+      ) : null} */
 
       <PortableTextRenderer value={post.body} />
 
