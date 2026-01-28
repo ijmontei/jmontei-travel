@@ -19,13 +19,6 @@ type Accommodation = {
   notes?: string;
 };
 
-type Activity = {
-  title?: string;
-  timeOfDay?: string; // "Morning" | "Afternoon" | "Evening" | etc.
-  category?: string;
-  link?: string;
-  notes?: string;
-};
 
 type Post = {
   _id: string;

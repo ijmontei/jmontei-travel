@@ -15,6 +15,7 @@ export const POSTS_QUERY = `*[_type == "post" && defined(slug.current)] | order(
     notes
   },
   body,
+  "bodyText": pt::text(body),
   gallery
 }`;
 
@@ -35,5 +36,6 @@ export const POST_BY_SLUG_QUERY = `*[_type == "post" && slug.current == $slug][0
     notes
   },
   body,
+  "bodyText": pt::text(body),
   gallery
 }`;

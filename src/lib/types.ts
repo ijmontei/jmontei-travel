@@ -6,13 +6,6 @@ export type Accommodation = {
   notes?: string;
 };
 
-export type Activity = {
-  title?: string;
-  timeOfDay?: "Morning" | "Afternoon" | "Evening" | "All Day";
-  category?: string; // Hike / Food / Museum / Travel / etc.
-  link?: string;
-  notes?: string;
-};
 
 export type Post = {
   _id: string;
@@ -26,4 +19,5 @@ export type Post = {
   // NEW
   city?: string;
   accommodation?: Accommodation;
+  bodyText?: string;
 };
