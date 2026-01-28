@@ -138,7 +138,7 @@ function CarIcon({ className = "" }: { className?: string }) {
   );
 }
 
-/** Build condensed location tags like "Marrakesh, Morocco" (multiple if needed) */
+/** Build condensed location tags like "Lisbon, Portugal" */
 function buildLocationTags(items: Post[]) {
   return uniq(
     items
@@ -151,16 +151,6 @@ function buildLocationTags(items: Post[]) {
       })
       .filter(Boolean) as string[]
   );
-}
-
-/** Determine a primary country/city for a day (for travel divider comparisons) */
-function primaryCountry(items: Post[]) {
-  const countries = uniq(items.map((p) => (p.country || "").trim()).filter(Boolean) as string[]);
-  return countries[0] || null;
-}
-function primaryCity(items: Post[]) {
-  const cities = uniq(items.map((p: any) => (p.city || "").trim()).filter(Boolean) as string[]);
-  return cities[0] || null;
 }
 
 function Pill({ children }: { children: React.ReactNode }) {
@@ -205,15 +195,28 @@ function AccentTag({
   );
 }
 
-/** ---------- Itinerary Panel ---------- */
-function ItineraryPanel({ posts }: { posts: Post[] }) {
-  // Filters
-  const [filtersOpen, setFiltersOpen] = useState(false);
+/** ---------- Itinerary Panel (Country → City → Days) ---------- */
+type DayGroup = { key: string; day: Date; items: Post[] };
+type CityGroup = {
+  city: string;
+  days: DayGroup[];
+  accommodations: { names: string[]; types: string[]; links: string[] };
+  allItems: Post[];
+};
+type CountryGroup = {
+  country: string;
+  hue: number;
+  cities: CityGroup[];
+  allItems: Post[];
+};
 
+function ItineraryPanel({ posts }: { posts: Post[] }) {
+  // Filters (still useful, even with the new structure)
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [country, setCountry] = useState<string>("All");
   const [city, setCity] = useState<string>("All");
-  const [dateFrom, setDateFrom] = useState<string>(""); // YYYY-MM-DD
-  const [dateTo, setDateTo] = useState<string>(""); // YYYY-MM-DD
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
   const [q, setQ] = useState<string>("");
 
   const countryOptions = useMemo(() => {
@@ -222,13 +225,8 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
     );
   }, [posts]);
 
-  // City options narrowed by selected country (nice UX)
   const cityOptions = useMemo(() => {
-    const base =
-      country === "All"
-        ? posts
-        : posts.filter((p) => (p.country || "").trim() === country);
-
+    const base = country === "All" ? posts : posts.filter((p) => (p.country || "").trim() === country);
     return ["All", ...uniq(base.map((p: any) => (p.city || "").trim()).filter(Boolean) as string[])].sort(
       (a, b) => a.localeCompare(b)
     );
@@ -266,22 +264,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
     });
   }, [posts, country, city, dateFrom, dateTo, q]);
 
-  // Group filtered posts by day (DESC = most recent at top)
-  const byDay = useMemo(() => {
-    const map = new Map<string, { day: Date; items: Post[] }>();
-
-    for (const p of filtered) {
-      const dt = safeDate((p as any).publishedAt as string);
-      if (!dt) continue;
-      const key = yyyyMmDd(dt);
-      const existing = map.get(key);
-      if (existing) existing.items.push(p);
-      else map.set(key, { day: dt, items: [p] });
-    }
-
-    return Array.from(map.values()).sort((a, b) => b.day.getTime() - a.day.getTime());
-  }, [filtered]);
-
   const hasActiveFilters =
     country !== "All" ||
     city !== "All" ||
@@ -297,6 +279,91 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
     setDateTo("");
   };
 
+  const grouped = useMemo<CountryGroup[]>(() => {
+    // Sort oldest → newest to preserve “route” ordering inside groups
+    const ordered = [...filtered]
+      .filter((p: any) => Boolean(safeDate(p.publishedAt)))
+      .sort(
+        (a: any, b: any) =>
+          (safeDate(a.publishedAt)?.getTime() ?? 0) - (safeDate(b.publishedAt)?.getTime() ?? 0)
+      );
+
+    // Ordered maps (we preserve insertion order)
+    const countryMap = new Map<string, { all: Post[]; cityMap: Map<string, Post[]> }>();
+
+    for (const p of ordered) {
+      const ctry = ((p as any).country || "Other").trim() || "Other";
+      const cty = (((p as any).city || "Unknown City").trim() || "Unknown City") as string;
+
+      if (!countryMap.has(ctry)) countryMap.set(ctry, { all: [], cityMap: new Map() });
+      const c = countryMap.get(ctry)!;
+      c.all.push(p);
+
+      if (!c.cityMap.has(cty)) c.cityMap.set(cty, []);
+      c.cityMap.get(cty)!.push(p);
+    }
+
+    const out: CountryGroup[] = [];
+
+    for (const [ctry, payload] of countryMap.entries()) {
+      const hue = accentHueFromCountry(ctry);
+      const cities: CityGroup[] = [];
+
+      for (const [cty, cityPosts] of payload.cityMap.entries()) {
+        // days within a city
+        const dayMap = new Map<string, { day: Date; items: Post[] }>();
+        for (const p of cityPosts) {
+          const dt = safeDate((p as any).publishedAt as string);
+          if (!dt) continue;
+          const key = yyyyMmDd(dt);
+          if (!dayMap.has(key)) dayMap.set(key, { day: dt, items: [] });
+          dayMap.get(key)!.items.push(p);
+        }
+
+        const days = Array.from(dayMap.entries())
+          .map(([key, v]) => ({
+            key,
+            day: v.day,
+            items: [...v.items].sort(
+              (a: any, b: any) =>
+                (safeDate(a.publishedAt)?.getTime() ?? 0) - (safeDate(b.publishedAt)?.getTime() ?? 0)
+            ),
+          }))
+          .sort((a, b) => a.day.getTime() - b.day.getTime());
+
+        const accommodationNames = uniq(
+          cityPosts.map((p: any) => p.accommodation?.name).filter(Boolean) as string[]
+        );
+        const accommodationTypes = uniq(
+          cityPosts.map((p: any) => p.accommodation?.type).filter(Boolean) as string[]
+        );
+        const accommodationLinks = uniq(
+          cityPosts.map((p: any) => p.accommodation?.link).filter(Boolean) as string[]
+        );
+
+        cities.push({
+          city: cty,
+          days,
+          accommodations: {
+            names: accommodationNames,
+            types: accommodationTypes,
+            links: accommodationLinks,
+          },
+          allItems: cityPosts,
+        });
+      }
+
+      out.push({
+        country: ctry,
+        hue,
+        cities,
+        allItems: payload.all,
+      });
+    }
+
+    return out;
+  }, [filtered]);
+
   return (
     <section className="mt-6">
       {/* Header */}
@@ -304,15 +371,15 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
         <h3 className="text-xl font-semibold tracking-tight">
           Itinerary{" "}
           <span className="align-middle text-xs font-semibold tracking-wide text-zinc-500">
-            (day-by-day)
+            (country → city)
           </span>
         </h3>
         <p className="text-sm text-zinc-500">
-          Click “Filters” to narrow by country, city, date range, or keyword.
+          Expand a country, then a city — you’ll see stays + posts grouped by date.
         </p>
       </div>
 
-      {/* Filters: compact pill + expandable panel */}
+      {/* Filters */}
       <div className="mt-5">
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -348,7 +415,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
               <path d="M10 8h4" />
               <path d="M18 16h4" />
             </svg>
-
             {filtersOpen ? "Close" : "Filters"}
           </button>
 
@@ -465,261 +531,272 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
       </div>
 
       {/* Empty state */}
-      {!byDay.length ? (
+      {!grouped.length ? (
         <div className="mt-5 rounded-2xl border bg-white p-5 text-sm text-zinc-600">
           No matches — try clearing filters or widening your date range.
         </div>
       ) : (
-        <div className="mt-6 relative">
-          {/* High impact / low clutter: upgraded “route” line */}
-          <div className="pointer-events-none absolute left-[14px] top-0 h-full w-px bg-gradient-to-b from-transparent via-zinc-300/90 to-transparent" />
-          <div className="pointer-events-none absolute left-[14px] top-0 h-full w-[10px] -translate-x-1/2 bg-gradient-to-b from-transparent via-amber-200/18 to-transparent blur-md" />
-          <div className="pointer-events-none absolute left-[14px] top-0 h-full w-px border-l border-dashed border-zinc-300/70" />
+        <div className="mt-6 space-y-4">
+          {grouped.map((cg, cIdx) => {
+            const prevCountry = cIdx > 0 ? grouped[cIdx - 1]?.country : null;
+            const showCountryTravel = Boolean(prevCountry) && prevCountry !== cg.country;
 
-          <div className="space-y-5">
-            {byDay.map(({ day, items }, idx) => {
-              const locTags = buildLocationTags(items);
-
-              const accommodationNames = uniq(
-                items.map((p: any) => p.accommodation?.name).filter(Boolean) as string[]
-              );
-              const accommodationTypes = uniq(
-                items.map((p: any) => p.accommodation?.type).filter(Boolean) as string[]
-              );
-              const accommodationLinks = uniq(
-                items.map((p: any) => p.accommodation?.link).filter(Boolean) as string[]
-              );
-
-              const prev = idx > 0 ? byDay[idx - 1] : null;
-
-              const prevCountry = prev ? primaryCountry(prev.items) : null;
-              const prevCity = prev ? primaryCity(prev.items) : null;
-
-              const curCountry = primaryCountry(items);
-              const curCity = primaryCity(items);
-
-              const isNewCountry =
-                Boolean(prevCountry) && Boolean(curCountry) && prevCountry !== curCountry;
-
-              const isNewCitySameCountry =
-                !isNewCountry &&
-                Boolean(prevCountry) &&
-                Boolean(curCountry) &&
-                prevCountry === curCountry &&
-                Boolean(prevCity) &&
-                Boolean(curCity) &&
-                prevCity !== curCity;
-
-              const showTravelDivider = isNewCountry || isNewCitySameCountry;
-
-              const hue = accentHueFromCountry(curCountry);
-
-              return (
-                <div key={yyyyMmDd(day)}>
-                  {/* Travel divider */}
-                  {showTravelDivider ? (
-                    <div className="relative pl-12">
-                      <div className="absolute left-[8px] top-2">
-                        <AccentDot hue={hue} />
-                      </div>
-
-                      <div className="mb-3 rounded-2xl border bg-white/80 backdrop-blur px-4 py-3 shadow-sm relative overflow-hidden">
-                        <div
-                          className="pointer-events-none absolute inset-0 opacity-40"
-                          style={{
-                            background: `linear-gradient(90deg,
-                              hsla(${accentHueFromCountry(prevCountry || "")}, 80%, 65%, 0.10),
-                              hsla(${hue}, 80%, 65%, 0.10)
-                            )`,
-                          }}
-                        />
-                        <div className="pointer-events-none absolute left-0 top-1/2 h-px w-full border-t border-dashed border-zinc-200/90" />
-
-                        <div className="relative flex items-center gap-3">
-                          <span
-                            className="rounded-full border p-2 shadow-sm"
-                            style={{
-                              background: `radial-gradient(circle at 30% 30%, hsla(${hue}, 85%, 66%, 0.92), hsla(${hue}, 85%, 45%, 0.92))`,
-                              borderColor: `hsla(${hue}, 60%, 55%, 0.25)`,
-                              color: "white",
-                            }}
-                          >
-                            {isNewCountry ? (
-                              <PlaneIcon className="h-4 w-4" />
-                            ) : (
-                              <CarIcon className="h-4 w-4" />
-                            )}
-                          </span>
-
-                          <div className="min-w-0">
-                            <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
-                              {isNewCountry ? "TRAVEL DAY" : "TRANSIT"}
-                            </div>
-
-                            <div className="text-sm font-semibold text-zinc-900">
-                              {isNewCountry
-                                ? `Flight to ${curCountry ?? "next stop"}`
-                                : `Transit to ${curCity ?? "next stop"}`}
-                            </div>
-
-                            <div className="text-xs text-zinc-500">
-                              {isNewCountry
-                                ? `from ${prevCountry ?? ""}`
-                                : `${prevCity ?? ""} → ${curCity ?? ""}${
-                                    curCountry ? ` · ${curCountry}` : ""
-                                  }`}
-                            </div>
-                          </div>
-
-                          <div className="ml-auto hidden sm:flex items-center gap-2">
-                            <span className="rounded-full border bg-white px-3 py-1 text-xs text-zinc-700 shadow-sm">
-                              {isNewCountry
-                                ? `${prevCountry ?? "—"} → ${curCountry ?? "—"}`
-                                : `${prevCity ?? "—"} → ${curCity ?? "—"}`}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {/* Day card */}
-                  <details className="group relative rounded-2xl border bg-white shadow-sm transition hover:shadow-md overflow-hidden">
+            return (
+              <div key={`country-${cg.country}`} className="space-y-3">
+                {/* Travel break between countries */}
+                {showCountryTravel ? (
+                  <div className="rounded-2xl border bg-white/80 backdrop-blur px-4 py-3 shadow-sm relative overflow-hidden">
                     <div
-                      className="pointer-events-none absolute inset-0 opacity-45"
+                      className="pointer-events-none absolute inset-0 opacity-35"
                       style={{
-                        background: `radial-gradient(circle at 12% 18%, hsla(${hue}, 85%, 65%, 0.14), transparent 55%),
-                                     radial-gradient(circle at 88% 30%, hsla(${hue}, 85%, 55%, 0.10), transparent 60%)`,
+                        background: `linear-gradient(90deg,
+                          hsla(${accentHueFromCountry(prevCountry || "")}, 80%, 65%, 0.10),
+                          hsla(${cg.hue}, 80%, 65%, 0.10)
+                        )`,
                       }}
                     />
+                    <div className="relative flex items-center gap-3">
+                      <span
+                        className="rounded-full border p-2 shadow-sm"
+                        style={{
+                          background: `radial-gradient(circle at 30% 30%, hsla(${cg.hue}, 85%, 66%, 0.92), hsla(${cg.hue}, 85%, 45%, 0.92))`,
+                          borderColor: `hsla(${cg.hue}, 60%, 55%, 0.25)`,
+                          color: "white",
+                        }}
+                      >
+                        <PlaneIcon className="h-4 w-4" />
+                      </span>
 
-                    <div className="absolute left-[8px] top-6">
-                      <AccentDot hue={hue} />
-                    </div>
-
-                    <summary className="relative cursor-pointer list-none px-5 py-5 pl-12">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <div className="text-base font-semibold tracking-tight text-zinc-900">
-                            {formatDayLabel(day)}
-                          </div>
-
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {locTags.slice(0, 4).map((t, i) => (
-                              <AccentTag key={`loc-${i}`} hue={hue}>
-                                {t}
-                              </AccentTag>
-                            ))}
-                          </div>
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
+                          TRAVEL
                         </div>
-
+                        <div className="text-sm font-semibold text-zinc-900">
+                          Flight to {cg.country}
+                        </div>
                         <div className="text-xs text-zinc-500">
-                          {items.length} post{items.length === 1 ? "" : "s"}{" "}
-                          <span className="ml-2 inline-flex items-center gap-1 rounded-full border bg-zinc-50 px-2 py-0.5">
-                            <span>Expand</span>
-                            <span
-                              className="transition-transform duration-200 group-open:rotate-180"
-                              aria-hidden
-                            >
-                              ▾
-                            </span>
-                          </span>
-                        </div>
-                      </div>
-                    </summary>
-
-                    <div className="relative border-t px-5 pb-6 pt-6">
-                      <div className="grid gap-4 md:grid-cols-2">
-                        {/* LEFT: Stay */}
-                        <div className="space-y-4">
-                          <div className="rounded-2xl border bg-gradient-to-br from-zinc-50 to-white p-4">
-                            <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
-                              WHERE WE STAYED
-                            </div>
-
-                            {accommodationNames.length ? (
-                              <>
-                                <div className="mt-2 text-base font-semibold text-zinc-900">
-                                  {accommodationNames.join(" • ")}
-                                </div>
-
-                                {accommodationTypes.length ? (
-                                  <div className="mt-2 flex flex-wrap gap-2">
-                                    {accommodationTypes.map((t, i) => (
-                                      <span
-                                        key={`acct-${i}`}
-                                        className="rounded-full border bg-white px-2.5 py-1 text-xs text-zinc-700 shadow-sm"
-                                      >
-                                        {t}
-                                      </span>
-                                    ))}
-                                  </div>
-                                ) : null}
-
-                                {accommodationLinks.length ? (
-                                  <div className="mt-3 space-y-1">
-                                    {accommodationLinks.slice(0, 2).map((href, i) => (
-                                      <a
-                                        key={`accl-${i}`}
-                                        href={href}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-800 underline underline-offset-4 hover:text-zinc-900"
-                                      >
-                                        View place <span aria-hidden>↗</span>
-                                      </a>
-                                    ))}
-                                  </div>
-                                ) : null}
-                              </>
-                            ) : (
-                              <div className="mt-2 text-sm text-zinc-500">
-                                Add an accommodation name in the post to show it here.
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* RIGHT: Posts */}
-                        <div className="rounded-2xl border bg-gradient-to-b from-white to-zinc-50 p-4">
-                          <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
-                            READ THE STORIES
-                          </div>
-
-                          <div className="mt-3 space-y-3">
-                            {items.map((p) => (
-                              <div
-                                key={p._id}
-                                className="flex items-start justify-between gap-3 rounded-xl border bg-white px-3 py-3 shadow-sm"
-                              >
-                                <div className="min-w-0">
-                                  <div className="truncate text-sm font-semibold text-zinc-900">
-                                    {p.title}
-                                  </div>
-                                  {p.excerpt ? (
-                                    <div className="mt-1 line-clamp-2 text-sm text-zinc-600">
-                                      {p.excerpt}
-                                    </div>
-                                  ) : null}
-                                </div>
-
-                                <Link
-                                  href={`/posts/${p.slug}`}
-                                  className="shrink-0 rounded-full border bg-[#414141] px-3 py-1 text-xs font-semibold text-[#f5de88] hover:opacity-90"
-                                >
-                                  Open →
-                                </Link>
-                              </div>
-                            ))}
-                          </div>
+                          from {prevCountry}
                         </div>
                       </div>
                     </div>
-                  </details>
-                </div>
-              );
-            })}
-          </div>
+                  </div>
+                ) : null}
+
+                {/* Country pill */}
+                <details className="group rounded-2xl border bg-white shadow-sm overflow-hidden">
+                  <summary className="cursor-pointer list-none px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <AccentDot hue={cg.hue} />
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-zinc-900 truncate">
+                          {cg.country}
+                        </div>
+                        <div className="text-xs text-zinc-500">
+                          {cg.cities.length} cit{cg.cities.length === 1 ? "y" : "ies"} ·{" "}
+                          {cg.allItems.length} post{cg.allItems.length === 1 ? "" : "s"}
+                        </div>
+                      </div>
+
+                      <span className="ml-auto inline-flex items-center gap-1 rounded-full border bg-zinc-50 px-2 py-0.5 text-xs text-zinc-700">
+                        <span>Expand</span>
+                        <span className="transition-transform duration-200 group-open:rotate-180" aria-hidden>
+                          ▾
+                        </span>
+                      </span>
+                    </div>
+                  </summary>
+
+                  <div className="border-t px-5 py-5 space-y-4">
+                    {cg.cities.map((cityGroup, cityIdx) => {
+                      const prevCity = cityIdx > 0 ? cg.cities[cityIdx - 1]?.city : null;
+                      const showTransit = Boolean(prevCity) && prevCity !== cityGroup.city;
+
+                      const locTags = buildLocationTags(cityGroup.allItems);
+
+                      return (
+                        <div key={`city-${cg.country}-${cityGroup.city}`} className="space-y-3">
+                          {/* Transit break between cities (within a country) */}
+                          {showTransit ? (
+                            <div className="rounded-2xl border bg-white/70 backdrop-blur px-4 py-3 shadow-sm">
+                              <div className="flex items-center gap-3">
+                                <span
+                                  className="rounded-full border p-2 shadow-sm"
+                                  style={{
+                                    background: `radial-gradient(circle at 30% 30%, hsla(${cg.hue}, 85%, 66%, 0.92), hsla(${cg.hue}, 85%, 45%, 0.92))`,
+                                    borderColor: `hsla(${cg.hue}, 60%, 55%, 0.25)`,
+                                    color: "white",
+                                  }}
+                                >
+                                  <CarIcon className="h-4 w-4" />
+                                </span>
+
+                                <div className="min-w-0">
+                                  <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
+                                    TRANSIT
+                                  </div>
+                                  <div className="text-sm font-semibold text-zinc-900">
+                                    {prevCity} → {cityGroup.city}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
+
+                          {/* City pill */}
+                          <details className="group/city rounded-2xl border bg-white shadow-sm overflow-hidden">
+                            <summary className="cursor-pointer list-none px-4 py-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold text-zinc-900">
+                                    {cityGroup.city}
+                                  </div>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {locTags.slice(0, 3).map((t, i) => (
+                                      <AccentTag key={`tag-${cityGroup.city}-${i}`} hue={cg.hue}>
+                                        {t}
+                                      </AccentTag>
+                                    ))}
+                                    <span className="rounded-full border bg-white px-2.5 py-1 text-xs text-zinc-700 shadow-sm">
+                                      {cityGroup.days.length} day{cityGroup.days.length === 1 ? "" : "s"}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <span className="shrink-0 inline-flex items-center gap-1 rounded-full border bg-zinc-50 px-2 py-0.5 text-xs text-zinc-700">
+                                  <span>Expand</span>
+                                  <span className="transition-transform duration-200 group-open/city:rotate-180" aria-hidden>
+                                    ▾
+                                  </span>
+                                </span>
+                              </div>
+                            </summary>
+
+                            <div className="border-t px-4 pb-5 pt-5">
+                              <div className="grid gap-4 md:grid-cols-2">
+                                {/* LEFT: Where we stayed */}
+                                <div className="space-y-4">
+                                  <div className="rounded-2xl border bg-gradient-to-br from-zinc-50 to-white p-4">
+                                    <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
+                                      WHERE WE STAYED
+                                    </div>
+
+                                    {cityGroup.accommodations.names.length ? (
+                                      <>
+                                        <div className="mt-2 text-base font-semibold text-zinc-900">
+                                          {cityGroup.accommodations.names.join(" • ")}
+                                        </div>
+
+                                        {cityGroup.accommodations.types.length ? (
+                                          <div className="mt-2 flex flex-wrap gap-2">
+                                            {cityGroup.accommodations.types.map((t, i) => (
+                                              <span
+                                                key={`acct-${cityGroup.city}-${i}`}
+                                                className="rounded-full border bg-white px-2.5 py-1 text-xs text-zinc-700 shadow-sm"
+                                              >
+                                                {t}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        ) : null}
+
+                                        {cityGroup.accommodations.links.length ? (
+                                          <div className="mt-3 space-y-1">
+                                            {cityGroup.accommodations.links.slice(0, 3).map((href, i) => (
+                                              <a
+                                                key={`accl-${cityGroup.city}-${i}`}
+                                                href={href}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-800 underline underline-offset-4 hover:text-zinc-900"
+                                              >
+                                                View place <span aria-hidden>↗</span>
+                                              </a>
+                                            ))}
+                                          </div>
+                                        ) : null}
+                                      </>
+                                    ) : (
+                                      <div className="mt-2 text-sm text-zinc-500">
+                                        Add an accommodation name in the post to show it here.
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Small day list (optional, but low clutter and useful) */}
+                                  <div className="rounded-2xl border bg-white p-4">
+                                    <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
+                                      DATES IN {cityGroup.city.toUpperCase()}
+                                    </div>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                      {cityGroup.days.map((d) => (
+                                        <span key={`daychip-${cityGroup.city}-${d.key}`} className="rounded-full border bg-zinc-50 px-2.5 py-1 text-xs text-zinc-700">
+                                          {d.key}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* RIGHT: Posts grouped by day */}
+                                <div className="rounded-2xl border bg-gradient-to-b from-white to-zinc-50 p-4">
+                                  <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
+                                    POSTS
+                                  </div>
+
+                                  <div className="mt-3 space-y-4">
+                                    {cityGroup.days.map((dg) => (
+                                      <div key={`posts-${cityGroup.city}-${dg.key}`} className="rounded-2xl border bg-white p-3 shadow-sm">
+                                        <div className="flex items-center gap-2">
+                                          <span className="inline-flex h-2 w-2 rounded-full" style={{ background: `hsla(${cg.hue}, 85%, 45%, 0.9)` }} />
+                                          <div className="text-sm font-semibold text-zinc-900">
+                                            {formatDayLabel(dg.day)}
+                                          </div>
+                                          <span className="ml-auto text-xs text-zinc-500">
+                                            {dg.items.length} post{dg.items.length === 1 ? "" : "s"}
+                                          </span>
+                                        </div>
+
+                                        <div className="mt-3 space-y-2">
+                                          {dg.items.map((p) => (
+                                            <div
+                                              key={p._id}
+                                              className="flex items-start justify-between gap-3 rounded-xl border bg-white px-3 py-3"
+                                            >
+                                              <div className="min-w-0">
+                                                <div className="truncate text-sm font-semibold text-zinc-900">
+                                                  {p.title}
+                                                </div>
+                                                {p.excerpt ? (
+                                                  <div className="mt-1 line-clamp-2 text-sm text-zinc-600">
+                                                    {p.excerpt}
+                                                  </div>
+                                                ) : null}
+                                              </div>
+
+                                              <Link
+                                                href={`/posts/${p.slug}`}
+                                                className="shrink-0 rounded-full border bg-[#414141] px-3 py-1 text-xs font-semibold text-[#f5de88] hover:opacity-90"
+                                              >
+                                                Open →
+                                              </Link>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </details>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+              </div>
+            );
+          })}
         </div>
       )}
     </section>
