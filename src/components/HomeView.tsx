@@ -734,27 +734,20 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                             <div className="border-t px-4 pb-5 pt-5">
                               {/* ONE unified panel: stay cards + posts */}
                               <div className="rounded-xl border bg-gradient-to-b from-white to-zinc-50 p-3">
-                                <div className="flex items-center justify-between">
-                                  <div className="text-[11px] font-semibold tracking-wide text-zinc-500">POSTS</div>
-                                  <div className="text-xs text-zinc-500">
-                                    {cityGroup.allItems.length} post{cityGroup.allItems.length === 1 ? "" : "s"}
-                                  </div>
-                                </div>
-
                                 {(() => {
                                   const flat = flattenDays(cityGroup.days);
                                   const stays = buildStayCards(flat);
 
                                   return (
-                                    <div className="mt-3 space-y-3">
+                                    <div className="space-y-3">
                                       {stays.map((stay) => (
                                         <div key={stay.key} className="rounded-xl border bg-white p-3">
                                           {/* Stay header */}
                                           <div className="flex items-center justify-between gap-3">
                                             <div className="min-w-0">
-                                              <div className="truncate text-sm font-semibold text-zinc-900">
-                                                {stay.name}
-                                              </div>
+                                            <div className="truncate text-sm font-semibold text-zinc-900">
+                                              Accommodation: {stay.name}
+                                            </div>
                                               {stay.type ? (
                                                 <div className="mt-0.5 text-[11px] text-zinc-500">{stay.type}</div>
                                               ) : null}
@@ -795,7 +788,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                                                   href={`/posts/${p.slug}`}
                                                   className="shrink-0 rounded-full border bg-[#414141] px-3 py-1 text-xs font-semibold text-[#f5de88] hover:opacity-90"
                                                 >
-                                                  Open →
+                                                  Read Post →
                                                 </Link>
                                               </div>
                                             ))}
