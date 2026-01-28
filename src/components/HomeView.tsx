@@ -151,21 +151,6 @@ function CarIcon({ className = "" }: { className?: string }) {
   );
 }
 
-/** Build condensed location tags like "Lisbon, Portugal" */
-function buildLocationTags(items: Post[]) {
-  return uniq(
-    items
-      .map((p: any) => {
-        const city = (p.city || "").trim();
-        const country = (p.country || "").trim();
-        if (!city && !country) return null;
-        if (city && country) return `${city}, ${country}`;
-        return city || country;
-      })
-      .filter(Boolean) as string[]
-  );
-}
-
 function Pill({ children }: { children: React.ReactNode }) {
   return (
     <span className="rounded-full border bg-white/70 px-2.5 py-1 text-xs text-zinc-700 shadow-sm">
@@ -229,15 +214,6 @@ function dateRangeFromPosts(items: Post[]) {
   const end = new Date(times[times.length - 1]);
   return { start, end };
 }
-function flattenDays(days: DayGroup[]) {
-  return days.flatMap((dg) =>
-    dg.items.map((p) => ({
-      post: p,
-      day: dg.day,
-      dayKey: dg.key,
-    }))
-  );
-}
 
 /** Slim travel / transit row */
 function TravelRow({
@@ -299,6 +275,15 @@ type CityGroup = {
   nights: number;
   range: { start: Date; end: Date } | null;
 };
+function flattenDays(days: DayGroup[]) {
+  return days.flatMap((dg) =>
+    dg.items.map((p) => ({
+      post: p,
+      day: dg.day,
+      dayKey: dg.key,
+    }))
+  );
+}
 type CountryGroup = {
   country: string;
   hue: number;
@@ -634,7 +619,8 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                       </div>
 
                       <span className="ml-auto inline-flex items-center gap-1 rounded-full border bg-zinc-50 px-2 py-0.5 text-xs text-zinc-700">
-                        <span>Expand</span>
+                        <span className="group-open:hidden">Expand</span>
+                        <span className="hidden group-open:inline">Collapse</span>
                         <span className="ml-1 transition-transform duration-200 group-open:rotate-180" aria-hidden>
                           ▾
                         </span>
@@ -647,7 +633,6 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                       const prevCity = cityIdx > 0 ? cg.cities[cityIdx - 1]?.city : null;
                       const showTransit = Boolean(prevCity) && prevCity !== cityGroup.city;
 
-                      const locTags = buildLocationTags(cityGroup.allItems);
                       const cityRangeLabel = cityGroup.range ? rangeLabel(cityGroup.range.start, cityGroup.range.end, false) : null;
                       const nightsLabel = `${cityGroup.nights} night${cityGroup.nights === 1 ? "" : "s"}`;
 
@@ -678,18 +663,11 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
 
                                     <span className="rounded-full border bg-white px-2.5 py-1 text-[11px] font-semibold text-zinc-700 shadow-sm">{nightsLabel}</span>
                                   </div>
-
-                                  <div className="mt-2 flex flex-wrap gap-2">
-                                    {locTags.slice(0, 3).map((t, i) => (
-                                      <AccentTag key={`tag-${cityGroup.city}-${i}`} hue={cg.hue}>
-                                        {t}
-                                      </AccentTag>
-                                    ))}
-                                  </div>
                                 </div>
 
                                 <span className="shrink-0 inline-flex items-center gap-1 rounded-full border bg-zinc-50 px-2 py-0.5 text-xs text-zinc-700">
-                                  <span>Expand</span>
+                                  <span className="group-open/city:hidden">Expand</span>
+                                  <span className="hidden group-open/city:inline">Collapse</span>
                                   <span className="transition-transform duration-200 group-open/city:rotate-180" aria-hidden>
                                     ▾
                                   </span>
@@ -880,7 +858,12 @@ export function HomeView({ posts }: { posts: Post[] }) {
                     excerpt={p.excerpt}
                     coverImage={p.coverImage}
                     publishedAt={p.publishedAt}
-                    country={p.country}
+                    country={
+                      p.city && p.country
+                        ? `${p.city}, ${p.country}`
+                        : (p.city || p.country)
+                    }
+                    
                   />
                 </Reveal>
               ))}
