@@ -284,6 +284,62 @@ function flattenDays(days: DayGroup[]) {
     }))
   );
 }
+
+type FlatPost = { post: Post; day: Date; dayKey: string };
+
+type StayCard = {
+  key: string;
+  name: string;
+  type?: string | null;
+  link?: string | null;
+  firstTs: number;
+  items: Array<{ post: Post; day: Date; ts: number }>;
+};
+
+function buildStayCards(flat: FlatPost[]): StayCard[] {
+  const map = new Map<string, StayCard>();
+
+  for (const { post, day } of flat) {
+    const acc = (post as any).accommodation || null;
+    const name = (acc?.name || "").trim();
+    const type = (acc?.type || "").trim();
+    const link = (acc?.link || "").trim();
+
+    const hasAcc = Boolean(name || link || type);
+    const key = hasAcc ? `${name}||${type}||${link}` : "__no_accommodation__";
+    const label = hasAcc ? (name || "Accommodation") : "No accommodation";
+
+    const ts =
+      safeDate((post as any).publishedAt as string)?.getTime() ??
+      day.getTime();
+
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        name: label,
+        type: hasAcc ? (type || null) : null,
+        link: hasAcc ? (link || null) : null,
+        firstTs: ts,
+        items: [],
+      });
+    }
+
+    const g = map.get(key)!;
+    g.items.push({ post, day, ts });
+    g.firstTs = Math.min(g.firstTs, ts);
+  }
+
+  // Sort stays by earliest post date, and posts inside by date
+  const stays = Array.from(map.values())
+    .map((g) => ({
+      ...g,
+      items: [...g.items].sort((a, b) => a.ts - b.ts),
+    }))
+    .sort((a, b) => a.firstTs - b.firstTs);
+
+  return stays;
+}
+
 type CountryGroup = {
   country: string;
   hue: number;
@@ -676,123 +732,81 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                             </summary>
 
                             <div className="border-t px-4 pb-5 pt-5">
-                              {/* make 2-col only on lg to reduce overall footprint */}
-                              <div className="grid gap-4 lg:grid-cols-2">
-                                {/* LEFT: Where we stayed (compact) */}
-                                <div className="space-y-4">
-                                  <div className="rounded-xl border bg-gradient-to-br from-zinc-50 to-white p-3">
-                                    <div className="text-[11px] font-semibold tracking-wide text-zinc-500">ACCOMODATIONS</div>
+                              {/* ONE unified panel: stay cards + posts */}
+                              <div className="rounded-xl border bg-gradient-to-b from-white to-zinc-50 p-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="text-[11px] font-semibold tracking-wide text-zinc-500">POSTS</div>
+                                  <div className="text-xs text-zinc-500">
+                                    {cityGroup.allItems.length} post{cityGroup.allItems.length === 1 ? "" : "s"}
+                                  </div>
+                                </div>
 
-                                    {(() => {
-                                    // Build a clean, de-duped list of accommodations *as rows*
-                                    const accMap = new Map<
-                                      string,
-                                      { name: string; type?: string; link?: string }
-                                    >();
+                                {(() => {
+                                  const flat = flattenDays(cityGroup.days);
+                                  const stays = buildStayCards(flat);
 
-                                    for (const p of cityGroup.allItems as any[]) {
-                                      const a = p.accommodation;
-                                      const name = (a?.name || "").trim();
-                                      if (!name) continue;
-
-                                      const type = (a?.type || "").trim() || undefined;
-                                      const link = (a?.link || "").trim() || undefined;
-
-                                      // Key keeps pairings together and dedupes cleanly
-                                      const key = `${name}|${type ?? ""}|${link ?? ""}`;
-                                      if (!accMap.has(key)) accMap.set(key, { name, type, link });
-                                    }
-
-                                    const accommodations = Array.from(accMap.values());
-
-                                    if (!accommodations.length) {
-                                      return (
-                                        <div className="mt-2 text-sm text-zinc-500">
-                                          Add an accommodation name in the post to show it here.
-                                        </div>
-                                      );
-                                    }
-
-                                    return (
-                                      <div className="mt-3 space-y-2">
-                                        {accommodations.map((a) => (
-                                          <div
-                                            key={`${a.name}-${a.type ?? ""}-${a.link ?? ""}`}
-                                            className="flex items-center justify-between gap-3 rounded-lg border bg-zinc-50 px-3 py-2"
-                                          >
+                                  return (
+                                    <div className="mt-3 space-y-3">
+                                      {stays.map((stay) => (
+                                        <div key={stay.key} className="rounded-xl border bg-white p-3">
+                                          {/* Stay header */}
+                                          <div className="flex items-center justify-between gap-3">
                                             <div className="min-w-0">
                                               <div className="truncate text-sm font-semibold text-zinc-900">
-                                                {a.name}
+                                                {stay.name}
                                               </div>
-
-                                              {a.type ? (
-                                                <div className="mt-0.5 text-[11px] text-zinc-500 truncate">
-                                                  {a.type}
-                                                </div>
+                                              {stay.type ? (
+                                                <div className="mt-0.5 text-[11px] text-zinc-500">{stay.type}</div>
                                               ) : null}
                                             </div>
 
-                                            {a.link ? (
+                                            {stay.link ? (
                                               <a
-                                                href={a.link}
+                                                href={stay.link}
                                                 target="_blank"
                                                 rel="noreferrer"
                                                 className="shrink-0 rounded-full border bg-[#414141] px-3 py-1 text-xs font-semibold text-[#f5de88] hover:opacity-90"
                                               >
-                                                visit ↗
+                                                Visit ↗
                                               </a>
-                                            ) : (
-                                              <span className="shrink-0 rounded-full border bg-white px-3 py-1 text-xs font-semibold text-zinc-400">
-                                                No link
-                                              </span>
-                                            )}
+                                            ) : null}
                                           </div>
-                                        ))}
-                                      </div>
-                                    );
-                                  })()}
 
-                                  </div>
-                                </div>
+                                          {/* Posts inside stay */}
+                                          <div className="mt-3 space-y-2">
+                                            {stay.items.map(({ post: p, day }) => (
+                                              <div
+                                                key={p._id}
+                                                className="flex items-center justify-between gap-3 rounded-lg border bg-zinc-50 px-3 py-2"
+                                              >
+                                                <div className="min-w-0">
+                                                  <div className="truncate text-sm font-semibold text-zinc-900">{p.title}</div>
+                                                  <div className="mt-0.5 flex items-center gap-2 text-[11px] text-zinc-500">
+                                                    <span
+                                                      className="inline-flex h-1.5 w-1.5 rounded-full"
+                                                      style={{ background: `hsla(${cg.hue}, 85%, 45%, 0.9)` }}
+                                                      aria-hidden
+                                                    />
+                                                    <span className="truncate">{formatDayLabel(day)}</span>
+                                                  </div>
+                                                </div>
 
-                                {/* RIGHT: Posts (flat list, date under title) */}
-                                <div className="rounded-xl border bg-gradient-to-b from-white to-zinc-50 p-3">
-                                  <div className="flex items-center justify-between">
-                                    <div className="text-[11px] font-semibold tracking-wide text-zinc-500">POSTS</div>
-                                    <div className="text-xs text-zinc-500">
-                                      {cityGroup.allItems.length} post{cityGroup.allItems.length === 1 ? "" : "s"}
-                                    </div>
-                                  </div>
-
-                                  <div className="mt-3 space-y-2">
-                                    {flattenDays(cityGroup.days).map(({ post: p, day, dayKey }) => (
-                                      <div
-                                        key={`${p._id}-${dayKey}`}
-                                        className="flex items-center justify-between gap-3 rounded-lg border bg-zinc-50 px-3 py-2"
-                                      >
-                                        <div className="min-w-0">
-                                          <div className="truncate text-sm font-semibold text-zinc-900">{p.title}</div>
-                                          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-zinc-500">
-                                            <span
-                                              className="inline-flex h-1.5 w-1.5 rounded-full"
-                                              style={{ background: `hsla(${cg.hue}, 85%, 45%, 0.9)` }}
-                                              aria-hidden
-                                            />
-                                            <span className="truncate">{formatDayLabel(day)}</span>
+                                                <Link
+                                                  href={`/posts/${p.slug}`}
+                                                  className="shrink-0 rounded-full border bg-[#414141] px-3 py-1 text-xs font-semibold text-[#f5de88] hover:opacity-90"
+                                                >
+                                                  Open →
+                                                </Link>
+                                              </div>
+                                            ))}
                                           </div>
                                         </div>
-
-                                        <Link
-                                          href={`/posts/${p.slug}`}
-                                          className="shrink-0 rounded-full border bg-[#414141] px-3 py-1 text-xs font-semibold text-[#f5de88] hover:opacity-90"
-                                        >
-                                          Open →
-                                        </Link>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
                               </div>
+
                             </div>
                           </details>
                         </div>
