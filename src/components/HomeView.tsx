@@ -737,27 +737,38 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                                   </div>
                                 </div>
 
-                                {/* RIGHT: Posts grouped by day (compact) */}
+                                {/* RIGHT: Posts grouped by day (ultra-compact) */}
                                 <div className="rounded-xl border bg-gradient-to-b from-white to-zinc-50 p-3">
                                   <div className="text-[11px] font-semibold tracking-wide text-zinc-500">POSTS</div>
 
                                   <div className="mt-3 space-y-3">
                                     {cityGroup.days.map((dg) => (
                                       <div key={`posts-${cityGroup.city}-${dg.key}`} className="rounded-xl border bg-white px-3 py-2">
+                                        {/* Date header */}
                                         <div className="flex items-center gap-2">
-                                          <span className="inline-flex h-2 w-2 rounded-full" style={{ background: `hsla(${cg.hue}, 85%, 45%, 0.9)` }} />
-                                          <div className="text-sm font-semibold text-zinc-900">{formatDayLabel(dg.day)}</div>
+                                          <span
+                                            className="inline-flex h-2 w-2 rounded-full"
+                                            style={{ background: `hsla(${cg.hue}, 85%, 45%, 0.9)` }}
+                                          />
+                                          <div className="text-sm font-semibold text-zinc-900 truncate">
+                                            {formatDayLabel(dg.day)}
+                                          </div>
                                           <span className="ml-auto text-xs text-zinc-500">
                                             {dg.items.length} post{dg.items.length === 1 ? "" : "s"}
                                           </span>
                                         </div>
 
+                                        {/* One-line posts */}
                                         <div className="mt-2 space-y-2">
                                           {dg.items.map((p) => (
-                                            <div key={p._id} className="flex items-center justify-between gap-3 rounded-lg border bg-zinc-50 px-3 py-2">
+                                            <div
+                                              key={p._id}
+                                              className="flex items-center justify-between gap-3 rounded-lg border bg-zinc-50 px-3 py-2"
+                                            >
                                               <div className="min-w-0">
-                                                <div className="truncate text-sm font-semibold text-zinc-900">{p.title}</div>
-                                                {p.excerpt ? <div className="mt-0.5 line-clamp-1 text-xs text-zinc-600">{p.excerpt}</div> : null}
+                                                <div className="truncate text-sm font-semibold text-zinc-900">
+                                                  {p.title}
+                                                </div>
                                               </div>
 
                                               <Link
@@ -773,6 +784,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                                     ))}
                                   </div>
                                 </div>
+
                               </div>
                             </div>
                           </details>
