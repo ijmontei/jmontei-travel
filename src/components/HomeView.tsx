@@ -245,7 +245,7 @@ function TravelRow({
           </div>
           <div className="truncate font-semibold text-[#e1eaf0]">{title}</div>
           {subtitle ? (
-            <div className="truncate text-xs text-[#A9C2B4]">
+            <div className="truncate text-xs text-[#e1eaf0]">
               {subtitle}
             </div>
           ) : null}
