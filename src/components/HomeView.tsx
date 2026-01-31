@@ -240,7 +240,7 @@ function TravelRow({
         </span>
 
         <div className="min-w-0">
-         <div className="text-[11px] font-semibold tracking-wide text-[#9ED3B6]">
+         <div className="text-[11px] font-semibold tracking-wide text-[#e1eaf0]">
             {kind === "travel" ? "TRAVEL" : "TRANSIT"}
           </div>
           <div className="truncate font-semibold text-[#e1eaf0]">{title}</div>
