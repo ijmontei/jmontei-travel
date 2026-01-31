@@ -222,7 +222,7 @@ function TravelRow({
           text-sm
           shadow-sm
           ring-1 ring-white/10
-          bg-[#1F2A24]
+          bg-[#9eb0a6]
           text-[#E7EFEA]
         "
       >
