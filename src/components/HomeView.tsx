@@ -214,24 +214,53 @@ function TravelRow({
 
       <div className="absolute left-[14px] top-0 h-full w-px border-l border-dashed border-zinc-300/70" />
 
-      <div className="flex items-center gap-3 rounded-xl border bg-zinc-50/70 px-3 py-2 text-sm shadow-sm">
+      <div
+        className="
+          flex items-center gap-3
+          rounded-xl
+          px-4 py-3
+          text-sm
+          shadow-sm
+          ring-1 ring-white/10
+          bg-[#1F2A24]
+          text-[#E7EFEA]
+        "
+      >
+
         <span
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full border"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full"
+
           style={{
-            background: `radial-gradient(circle at 30% 30%, hsla(${hue}, 85%, 66%, 0.92), hsla(${hue}, 85%, 45%, 0.92))`,
-            borderColor: `hsla(${hue}, 60%, 55%, 0.25)`,
-            color: "white",
+            background: `radial-gradient(circle at 30% 30%, hsla(${hue}, 70%, 55%, 0.9), hsla(${hue}, 70%, 35%, 0.9))`,
+            boxShadow: "0 0 0 1px rgba(255,255,255,0.15)",
+            color: "#F3F7F4",
           }}
         >
           {kind === "travel" ? <PlaneIcon className="h-4 w-4" /> : <CarIcon className="h-4 w-4" />}
         </span>
 
         <div className="min-w-0">
-          <div className="text-[11px] font-semibold tracking-wide text-zinc-500">
+         <div className="text-[11px] font-semibold tracking-wide text-[#9ED3B6]">
             {kind === "travel" ? "TRAVEL" : "TRANSIT"}
           </div>
-          <div className="truncate font-semibold text-zinc-900">{title}</div>
-          {subtitle ? <div className="truncate text-xs text-zinc-500">{subtitle}</div> : null}
+          <div className="truncate font-semibold text-[#E7EFEA]">{title}</div>
+          {subtitle ? (
+            <div className="truncate text-xs text-[#A9C2B4]">
+              {subtitle}
+            </div>
+          ) : null}
+          <div
+  aria-hidden
+  className="pointer-events-none absolute inset-0 rounded-xl opacity-[0.04]"
+  style={{
+    backgroundImage:
+      "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.4) 1px, transparent 0)",
+    backgroundSize: "18px 18px",
+  }}
+/>
+
+          
+
         </div>
       </div>
     </div>
