@@ -243,7 +243,7 @@ function TravelRow({
          <div className="text-[11px] font-semibold tracking-wide text-[#9ED3B6]">
             {kind === "travel" ? "TRAVEL" : "TRANSIT"}
           </div>
-          <div className="truncate font-semibold text-[#E7EFEA]">{title}</div>
+          <div className="truncate font-semibold text-[#122733]">{title}</div>
           {subtitle ? (
             <div className="truncate text-xs text-[#A9C2B4]">
               {subtitle}
