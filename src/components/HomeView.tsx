@@ -222,8 +222,8 @@ function TravelRow({
           text-sm
           shadow-sm
           ring-1 ring-white/10
-          bg-[#65747d]
-          text-[#122733]
+          bg-[#a8d4ed]
+          text-[#113042]
         "
       >
 
@@ -243,7 +243,7 @@ function TravelRow({
          <div className="text-[11px] font-semibold tracking-wide text-[#9ED3B6]">
             {kind === "travel" ? "TRAVEL" : "TRANSIT"}
           </div>
-          <div className="truncate font-semibold text-[#122733]">{title}</div>
+          <div className="truncate font-semibold text-[#e1eaf0]">{title}</div>
           {subtitle ? (
             <div className="truncate text-xs text-[#A9C2B4]">
               {subtitle}
@@ -653,7 +653,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
             return (
               <div key={`country-${cg.country}`} className="space-y-3">
                 {showCountryTravel ? (
-                  <TravelRow kind="travel" hue={cg.hue} title={`Flight to ${cg.country}`} subtitle={`from ${prevCountry}`} />
+                  <TravelRow kind="travel" hue={cg.hue} title={`Flight to ${cg.country}`} /> /*subtitle={`from ${prevCountry}`} if I want to add from */
                 ) : null}
 
                 {/* ✅ 2) Slightly translucent large containers */}
