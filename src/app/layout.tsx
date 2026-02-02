@@ -21,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             href="/"
             className="font-semibold tracking-tight text-xl md:text-2xl hover:opacity-70 transition text-center"
           >
-            Amanda &amp; Jovan's&apos;s Travel Journal
+            Amanda &amp; Jovan&apos;s Travel Journal
           </a>
         </header>
 
