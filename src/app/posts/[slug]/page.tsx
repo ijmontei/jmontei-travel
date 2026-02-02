@@ -94,7 +94,7 @@ export default async function PostPage({ params }: PageProps) {
     Boolean(post.accommodation?.name);
 
   return (
-    <article className="w-full px-6 lg:px-12">
+    <article className="max-w-3xl">
       <div className="mb-6">
         <Link href="/" className="text-sm text-zinc-500 hover:text-zinc-800">
           ← Back
