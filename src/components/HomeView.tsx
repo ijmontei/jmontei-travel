@@ -901,7 +901,7 @@ export function HomeView({ posts }: { posts: Post[] }) {
 
         <div className="transition-opacity duration-200">
           {mode === "latest" ? (
-            <section className="grid gap-6 md:grid-cols-3">
+            <section className="grid gap-6 md:grid-cols-2">
               {posts.map((p, idx) => (
                 <Reveal key={p._id} delayMs={Math.min(idx * 60, 360)}>
                   <PostCard

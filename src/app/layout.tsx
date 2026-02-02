@@ -15,7 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen text-[rgb(var(--text))]">
         <AmbientBackground />
 
-        <div className="w-full px-6 lg:px-12">
+        <div className="w-full px-6 lg:px-6">
         <header className="pt-4 pb-1 flex justify-center">
           <a
             href="/"
