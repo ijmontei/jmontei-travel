@@ -297,8 +297,9 @@ function groupPostsByAccommodation(items: Post[]) {
     ...g,
     posts: [...g.posts].sort(
       (a: any, b: any) =>
-        (safeDate(a.publishedAt)?.getTime() ?? 0) - (safeDate(b.publishedAt)?.getTime() ?? 0)
-    ),
+        (safeDate(b.publishedAt)?.getTime() ?? 0) -
+        (safeDate(a.publishedAt)?.getTime() ?? 0)
+    ),    
   }));
 
   groups.sort((a, b) => a.firstDate - b.firstDate);
@@ -379,11 +380,13 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
 
   const grouped = useMemo<CountryGroup[]>(() => {
     const ordered = [...filtered]
-      .filter((p: any) => Boolean(safeDate(p.publishedAt)))
-      .sort(
-        (a: any, b: any) =>
-          (safeDate(a.publishedAt)?.getTime() ?? 0) - (safeDate(b.publishedAt)?.getTime() ?? 0)
-      );
+    .filter((p: any) => Boolean(safeDate(p.publishedAt)))
+    .sort(
+      (a: any, b: any) =>
+        (safeDate(b.publishedAt)?.getTime() ?? 0) -
+        (safeDate(a.publishedAt)?.getTime() ?? 0)
+    );
+
 
     const countryMap = new Map<string, { all: Post[]; cityMap: Map<string, Post[]> }>();
 
@@ -425,7 +428,7 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                 (safeDate(a.publishedAt)?.getTime() ?? 0) - (safeDate(b.publishedAt)?.getTime() ?? 0)
             ),
           }))
-          .sort((a, b) => a.day.getTime() - b.day.getTime());
+          .sort((a, b) => b.day.getTime() - a.day.getTime());
 
         const cityRange = dateRangeFromPosts(cityPosts);
         const nights = days.length;
@@ -624,7 +627,13 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
             return (
               <div key={`country-${cg.country}`} className="space-y-3">
                 {showCountryTravel ? (
-                  <TravelRow kind="travel" hue={cg.hue} title={`Flight to ${cg.country}`} subtitle={`from ${prevCountry}`} />
+                  <TravelRow
+                    kind="travel"
+                    hue={cg.hue}
+                    title={`Flight to ${prevCountry}`}
+                    subtitle={`from ${cg.country}`}
+                  />
+                
                 ) : null}
 
                 {/* ✅ 2) Slightly translucent large containers */}
@@ -678,7 +687,11 @@ function ItineraryPanel({ posts }: { posts: Post[] }) {
                       return (
                         <div key={`city-${cg.country}-${cityGroup.city}`} className="space-y-3">
                           {showTransit ? (
-                            <TravelRow kind="transit" hue={cg.hue} title={`${prevCity} → ${cityGroup.city}`}/>
+                            <TravelRow
+                              kind="transit"
+                              hue={cg.hue}
+                              title={`${cityGroup.city} → ${prevCity}`}
+                            />
                           ) : null}
 
                           <details className="group/city rounded-2xl border bg-zinc-50/80 backdrop-blur shadow-sm overflow-hidden">
@@ -888,7 +901,7 @@ export function HomeView({ posts }: { posts: Post[] }) {
 
         <div className="transition-opacity duration-200">
           {mode === "latest" ? (
-            <section className="grid gap-6 md:grid-cols-2">
+            <section className="grid gap-6 md:grid-cols-3">
               {posts.map((p, idx) => (
                 <Reveal key={p._id} delayMs={Math.min(idx * 60, 360)}>
                   <PostCard

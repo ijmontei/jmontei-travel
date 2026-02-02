@@ -4,7 +4,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --bg: 243, 247, 242;        /* warm paper */
+  --bg: 236, 247, 235;        /* warm paper */
   --text: 24 24 27;         /* zinc-900 */
   --muted: oklch(0.97 0 0);     /* zinc-500 */
   --card: oklch(1 0 0);      /* white */
