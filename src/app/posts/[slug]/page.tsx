@@ -118,6 +118,8 @@ export default async function PostPage({ params }: PageProps) {
       ) : null}
 
       <PortableTextRenderer value={post.body} />
+      {/* Carousel gallery (no cropping, preserves aspect ratio) */}
+      {post.gallery?.length ? <GalleryCarousel images={post.gallery} /> : null}
       {hasItineraryDetails ? (  
         <section className="mb-8 rounded-2xl border bg-white p-1 sm:p-1">
             {}
@@ -149,8 +151,6 @@ export default async function PostPage({ params }: PageProps) {
             ) : null}
         </section>
       ) : null} 
-      {/* Carousel gallery (no cropping, preserves aspect ratio) */}
-      {post.gallery?.length ? <GalleryCarousel images={post.gallery} /> : null}
     </article>
   );
 }
