@@ -119,9 +119,13 @@ export default async function PostPage({ params }: PageProps) {
 
       <PortableTextRenderer value={post.body} />
       {/* Carousel gallery (no cropping, preserves aspect ratio) */}
-      {post.gallery?.length ? <GalleryCarousel images={post.gallery} /> : null}
+      {post.gallery?.length ? (
+        <div className="mb-16">
+          <GalleryCarousel images={post.gallery} />
+        </div>
+      ) : null}
       {hasItineraryDetails ? (  
-        <section className="mb-8 rounded-2xl border bg-white p-3 sm:p-3">
+        <section className="mb-8 rounded-2xl border bg-white p-1 sm:p-1">
             {}
             {post.accommodation?.name ? (
               <div className="rounded-xl bg-zinc-50 p-3">
