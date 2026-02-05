@@ -94,7 +94,7 @@ export default async function PostPage({ params }: PageProps) {
     Boolean(post.accommodation?.name);
 
   return (
-    <article className="max-w-3xl">
+    <article className="mx-auto max-w-5xl px-4 sm:px-6">
       <div className="mb-6">
         <Link href="/" className="text-sm text-zinc-500 hover:text-zinc-800">
           ← Back
@@ -117,7 +117,10 @@ export default async function PostPage({ params }: PageProps) {
         </div>
       ) : null}
 
-      <PortableTextRenderer value={post.body} />
+      <div className="mx-auto max-w-4xl">
+        <PortableTextRenderer value={post.body} />
+      </div>
+
       {/* Carousel gallery (no cropping, preserves aspect ratio) */}
       {post.gallery?.length ? (
         <div className="mb-16">
