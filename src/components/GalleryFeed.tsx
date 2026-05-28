@@ -18,17 +18,24 @@ type GalleryItem = {
 export function GalleryFeed({ posts }: { posts: Post[] }) {
   const [selected, setSelected] = useState<GalleryItem | null>(null);
 
-  const images = useMemo(() => {
-    return posts.flatMap((post) =>
-      (post.gallery || []).map((image: any) => ({
-        image,
-        postTitle: post.title,
-        slug: post.slug,
-        country: post.country,
-        city: post.city,
-        publishedAt: post.publishedAt,
-      }))
-    );
+   const images = useMemo(() => {
+    return posts
+      .flatMap((post) =>
+        (post.gallery || []).map((image: any) => ({
+          image,
+          postTitle: post.title,
+          slug: post.slug,
+          country: post.country,
+          city: post.city,
+          publishedAt: post.publishedAt,
+        }))
+      )
+      // Sorts images by date: newest first
+      .sort((a, b) => {
+        const dateA = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+        const dateB = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+        return dateB - dateA; 
+      });
   }, [posts]);
 
   if (!images.length) {
@@ -51,7 +58,6 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
       <section className="mt-6">
         <div className="columns-2 gap-4 sm:columns-3 lg:columns-4">
           {images.map((item, idx) => {
-            // FIX 1: Safety check added for item.image.asset
             const imageUrl = item.image && item.image.asset
               ? urlForImage(item.image).width(1200).url()
               : null;
@@ -91,8 +97,6 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
         </div>
       </section>
 
-      {/* Modal */}
-      {/* FIX 2: Safety check added for selected.image.asset */}
       {selected && selected.image && selected.image.asset ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
