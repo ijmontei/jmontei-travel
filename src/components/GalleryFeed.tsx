@@ -100,7 +100,7 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
       {/* Modal */}
       {selected && selected.image && selected.image.asset ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+          className="fixed top-0 left-0 w-full h-full z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
           onClick={() => setSelected(null)}
         >
           <div
