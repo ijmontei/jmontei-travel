@@ -18,7 +18,7 @@ type GalleryItem = {
 export function GalleryFeed({ posts }: { posts: Post[] }) {
   const [selected, setSelected] = useState<GalleryItem | null>(null);
 
-   const images = useMemo(() => {
+  const images = useMemo(() => {
     return posts
       .flatMap((post) =>
         (post.gallery || []).map((image: any) => ({
@@ -30,7 +30,6 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
           publishedAt: post.publishedAt,
         }))
       )
-      // Sorts images by date: newest first
       .sort((a, b) => {
         const dateA = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
         const dateB = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
@@ -56,7 +55,7 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
     <>
       {/* Feed */}
       <section className="mt-6">
-        <div className="columns-2 gap-4 sm:columns-3 lg:columns-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {images.map((item, idx) => {
             const imageUrl = item.image && item.image.asset
               ? urlForImage(item.image).width(1200).url()
@@ -69,20 +68,21 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
                 key={`${item.slug}-${idx}`}
                 type="button"
                 onClick={() => setSelected(item)}
-                className="group relative mb-4 block w-full overflow-hidden rounded-2xl bg-zinc-100 break-inside-avoid"
+                className="group relative block w-full overflow-hidden rounded-2xl bg-zinc-100"
               >
-                <Image
-                  src={imageUrl}
-                  alt={item.image?.alt || item.postTitle}
-                  width={1200}
-                  height={1600}
-                  className="h-auto w-full object-cover transition duration-500 group-hover:scale-[1.02]"
-                />
+                <div className="aspect-square relative w-full h-full">
+                  <Image
+                    src={imageUrl}
+                    alt={item.image?.alt || item.postTitle}
+                    fill
+                    className="object-cover transition duration-500 group-hover:scale-[1.02]"
+                  />
+                </div>
 
                 {/* Overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
-                <div className="absolute inset-x-0 bottom-0 p-4 text-left opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                <div className="absolute inset-x-0 bottom-0 p-4 text-left opacity-0 transition-opacity duration-300 group-hover:opacity-100 z-10">
                   <div className="text-xs font-medium uppercase tracking-wide text-zinc-200">
                     {[item.city, item.country].filter(Boolean).join(", ")}
                   </div>
@@ -97,6 +97,7 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
         </div>
       </section>
 
+      {/* Modal */}
       {selected && selected.image && selected.image.asset ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
