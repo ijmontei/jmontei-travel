@@ -30,7 +30,6 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
     setMounted(true);
   }, []);
 
-  // 1. Flatten and Sort all images by date (Newest First)
   const sortedImages = useMemo(() => {
     return posts
       .flatMap((post) =>
@@ -50,10 +49,7 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
       });
   }, [posts]);
 
-  // Modal Navigation Logic
-  const currentIndex = selected
-    ? sortedImages.findIndex((img) => img === selected)
-    : -1;
+  const currentIndex = selected ? sortedImages.findIndex((img) => img === selected) : -1;
   const hasNext = currentIndex !== -1 && currentIndex < sortedImages.length - 1;
   const hasPrev = currentIndex !== -1 && currentIndex > 0;
 
@@ -67,17 +63,14 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
     if (hasPrev) setSelected(sortedImages[currentIndex - 1]);
   };
 
-  // Lock body scroll & handle keyboard events when popup modal is open
   useEffect(() => {
     if (selected) {
       document.body.style.overflow = "hidden";
-
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === "ArrowRight") handleNext();
         if (e.key === "ArrowLeft") handlePrev();
         if (e.key === "Escape") setSelected(null);
       };
-
       window.addEventListener("keydown", handleKeyDown);
       return () => {
         document.body.style.overflow = "";
@@ -87,14 +80,10 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
     return () => {
       document.body.style.overflow = "";
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, currentIndex]);
 
-  // 2. Group the sorted images into Month chunks with custom "Mmm-yy" labels
   const groupedMonths = useMemo(() => {
-    const groups: {
-      [key: string]: { shortLabel: string; items: GalleryItem[] };
-    } = {};
+    const groups: { [key: string]: { shortLabel: string; items: GalleryItem[] } } = {};
 
     sortedImages.forEach((item) => {
       let monthKey = "Undated";
@@ -104,19 +93,13 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
         const date = new Date(item.publishedAt);
         if (!isNaN(date.getTime())) {
           monthKey = `${date.getFullYear()}-${date.getMonth()}`;
-          const monthStr = date.toLocaleDateString(undefined, {
-            month: "short",
-          });
-          const yearStr = date.toLocaleDateString(undefined, {
-            year: "2-digit",
-          });
+          const monthStr = date.toLocaleDateString(undefined, { month: "short" });
+          const yearStr = date.toLocaleDateString(undefined, { year: "2-digit" });
           shortLabel = `${monthStr}-${yearStr}`;
         }
       }
 
-      if (!groups[monthKey]) {
-        groups[monthKey] = { shortLabel, items: [] };
-      }
+      if (!groups[monthKey]) groups[monthKey] = { shortLabel, items: [] };
       groups[monthKey].items.push(item);
     });
 
@@ -130,23 +113,17 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
   if (!sortedImages.length) {
     return (
       <div className="mt-10 rounded-3xl border bg-white/60 p-10 text-center shadow-sm">
-        <h3 className="text-lg font-semibold text-zinc-900">
-          No gallery photos yet
-        </h3>
-        <p className="mt-2 text-sm text-zinc-500">
-          Add images to post galleries in Sanity to populate this feed.
-        </p>
+        <h3 className="text-lg font-semibold text-zinc-900">No gallery photos yet</h3>
       </div>
     );
   }
 
   return (
     <>
-      {/* Feed Container */}
       <div className="mt-8 space-y-16">
         {groupedMonths.map((group, groupIdx) => (
           <div key={group.monthLabel} className="space-y-8">
-            {/* HORIZONTAL TIMELINE BREAK */}
+            {/* TIMELINE */}
             <div className="relative flex items-center py-2 select-none">
               <div className="h-px flex-1 bg-zinc-200/80" />
               <div className="mx-4 flex items-center gap-2 rounded-full border border-zinc-200 bg-[#414141] px-4 py-1 shadow-sm transition-all duration-300 hover:scale-105">
@@ -164,18 +141,17 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
             {/* ARTISTIC BENTO GRID */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 auto-rows-[200px] grid-flow-dense gap-3 sm:gap-4">
               {group.items.map((item, idx) => {
-                const imageUrl =
-                  item.image && item.image.asset
-                    ? urlForImage(item.image).width(1200).url()
-                    : null;
+                // Requesting a clean 1080p max resolution width from Sanity CDN & auto modern formats
+                const imageUrl = item.image && item.image.asset
+                  ? urlForImage(item.image).width(1080).auto("format").url()
+                  : null;
 
                 if (!imageUrl) return null;
 
-                // Create an asymmetrical mosaic pattern
                 let spanClasses = "col-span-1 row-span-1";
-                if (idx % 6 === 0) spanClasses = "col-span-2 row-span-2"; // Large highlight piece
-                else if (idx % 7 === 0) spanClasses = "col-span-2 row-span-1"; // Wide piece
-                else if (idx % 5 === 0) spanClasses = "col-span-1 row-span-2"; // Tall piece
+                if (idx % 6 === 0) spanClasses = "col-span-2 row-span-2";
+                else if (idx % 7 === 0) spanClasses = "col-span-2 row-span-1";
+                else if (idx % 5 === 0) spanClasses = "col-span-1 row-span-2";
 
                 return (
                   <button
@@ -188,13 +164,13 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
                       src={imageUrl}
                       alt={item.image?.alt || item.postTitle}
                       fill
+                      // sizes limits Next.js rendering overhead. It tells the browser exactly what layout slice to expect.
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                       className="object-cover transition-all duration-700 ease-in-out group-hover:scale-110 group-hover:-rotate-1 group-hover:brightness-110"
                     />
 
-                    {/* Gradient Overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
-                    {/* Text Container with slight slide-up animation */}
                     <div className="absolute inset-x-0 bottom-0 p-4 text-left translate-y-4 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 z-10">
                       <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-300">
                         {[item.city, item.country].filter(Boolean).join(", ")}
@@ -222,7 +198,7 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
                 className="relative flex h-full max-h-[95vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-zinc-950/80 shadow-2xl ring-1 ring-white/10"
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* Exit "X" Button - Top Right */}
+                {/* Exit "X" Button */}
                 <button
                   type="button"
                   onClick={() => setSelected(null)}
@@ -233,7 +209,7 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
                   </svg>
                 </button>
 
-                {/* Left/Right Navigation Arrows */}
+                {/* Left Arrow */}
                 {hasPrev && (
                   <button
                     onClick={handlePrev}
@@ -245,6 +221,7 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
                   </button>
                 )}
 
+                {/* Right Arrow */}
                 {hasNext && (
                   <button
                     onClick={handleNext}
@@ -256,13 +233,15 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
                   </button>
                 )}
 
-                {/* Image Container */}
+                {/* Main Viewport Container */}
                 <div className="relative flex flex-1 items-center justify-center overflow-hidden p-4">
                   <Image
-                    src={urlForImage(selected.image).width(2000).url()}
+                    // Grabs a beautiful, high-fidelity 2K layout for the zoomed modal view
+                    src={urlForImage(selected.image).width(2000).auto("format").url()}
                     alt={selected.image?.alt || selected.postTitle}
                     width={2000}
                     height={2000}
+                    priority // Loads current active modal target instantly
                     className="max-h-full max-w-full object-contain"
                   />
                 </div>
@@ -271,9 +250,7 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
                 <div className="flex flex-col gap-4 border-t border-white/10 bg-zinc-950/50 px-6 py-5 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="text-xs uppercase tracking-widest text-zinc-400">
-                      {[selected.city, selected.country]
-                        .filter(Boolean)
-                        .join(", ")}
+                      {[selected.city, selected.country].filter(Boolean).join(", ")}
                     </div>
                     <div className="mt-1 text-xl font-semibold text-white tracking-tight">
                       {selected.postTitle}
