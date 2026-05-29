@@ -17,7 +17,8 @@ type GalleryItem = {
 };
 
 type GroupedMonth = {
-  monthLabel: string; // e.g. "October 2025"
+  monthLabel: string; // Used for sorting/keys
+  shortDateLabel: string; // e.g., "May-26"
   items: GalleryItem[];
 };
 
@@ -61,31 +62,37 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
       });
   }, [posts]);
 
-  // 2. Group the sorted images into Month/Year chunks
+  // 2. Group the sorted images into Month chunks with custom "Mmm-yy" labels
   const groupedMonths = useMemo(() => {
-    const groups: { [key: string]: GalleryItem[] } = {};
+    const groups: { [key: string]: { shortLabel: string; items: GalleryItem[] } } = {};
 
     sortedImages.forEach((item) => {
-      let label = "Undated Memories";
+      let monthKey = "Undated";
+      let shortLabel = "Memories";
+
       if (item.publishedAt) {
         const date = new Date(item.publishedAt);
         if (!isNaN(date.getTime())) {
-          label = date.toLocaleDateString(undefined, {
-            month: "long",
-            year: "numeric",
-          });
+          // Creates strict key for grouping (e.g., "2026-05")
+          monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+          
+          // Formats to "May-26"
+          const monthStr = date.toLocaleDateString(undefined, { month: "short" });
+          const yearStr = date.toLocaleDateString(undefined, { year: "2-digit" });
+          shortLabel = `${monthStr}-${yearStr}`;
         }
       }
 
-      if (!groups[label]) {
-        groups[label] = [];
+      if (!groups[monthKey]) {
+        groups[monthKey] = { shortLabel, items: [] };
       }
-      groups[label].push(item);
+      groups[monthKey].items.push(item);
     });
 
-    return Object.keys(groups).map((monthLabel) => ({
-      monthLabel,
-      items: groups[monthLabel],
+    return Object.keys(groups).map((key) => ({
+      monthLabel: key,
+      shortDateLabel: groups[key].shortLabel,
+      items: groups[key].items,
     })) as GroupedMonth[];
   }, [sortedImages]);
 
@@ -104,79 +111,76 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
 
   return (
     <>
-      {/* Gallery Layout with Sticky Side Date Tracker */}
-      <div className="relative mt-8 flex flex-col gap-6 md:flex-row md:items-start">
-        
-        {/* Main Feed Container */}
-        <div className="w-full space-y-12">
-          {groupedMonths.map((group, groupIdx) => (
-            <div 
-              key={group.monthLabel} 
-              className="flex flex-col gap-4 md:flex-row md:items-start"
-            >
+      {/* Feed Container */}
+      <div className="mt-8 space-y-10">
+        {groupedMonths.map((group, groupIdx) => (
+          <div key={group.monthLabel} className="space-y-6">
+            
+            {/* HORIZONTAL TIMELINE BREAK: Distinct, subtle separator */}
+            <div className="relative flex items-center py-2 select-none">
+              {/* Left Line */}
+              <div className="h-px flex-1 bg-zinc-200/80" />
               
-              {/* STICKY SIDEBAR: Shows the Date/Month of the current block */}
-              <div className="md:sticky md:top-24 md:w-48 shrink-0 py-2">
-                <div className="flex items-center gap-3 md:flex-col md:items-start md:gap-1">
-                  {/* Visual Timeline Node Dot */}
-                  <div className="hidden h-2.5 w-2.5 rounded-full bg-[#414141] ring-4 ring-[#f5de88]/30 md:block" />
-                  
-                  {/* The Date Typography */}
-                  <h4 className="text-sm font-bold uppercase tracking-wider text-zinc-400 md:mt-2">
-                    {group.monthLabel.split(" ")[0]}
-                  </h4>
-                  <span className="text-xl font-extrabold text-zinc-800 md:text-2xl">
-                    {group.monthLabel.split(" ")[1] || ""}
-                  </span>
-                </div>
-                {/* Vertical Connector Line */}
-                <div className="hidden md:block ml-[4px] mt-4 h-16 w-px bg-zinc-200/80" />
+              {/* Timeline Center Badge */}
+              <div className="mx-4 flex items-center gap-2 rounded-full border border-zinc-200 bg-[#414141] px-4 py-1 shadow-sm transition-all duration-300 hover:scale-105">
+                {/* Glowing Core Dot */}
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#f5de88] opacity-75"></span>
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#f5de88]"></span>
+                </span>
+                {/* Clean Mmm-yy text style */}
+                <span className="font-mono text-xs font-bold tracking-widest text-[#f5de88]">
+                  {group.shortDateLabel}
+                </span>
               </div>
-
-              {/* Grid Wrapper for images belonging to this month */}
-              <div className="grid flex-1 grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                {group.items.map((item, idx) => {
-                  const imageUrl = item.image && item.image.asset
-                    ? urlForImage(item.image).width(1200).url()
-                    : null;
-
-                  if (!imageUrl) return null;
-
-                  return (
-                    <button
-                      key={`${item.slug}-${groupIdx}-${idx}`}
-                      type="button"
-                      onClick={() => setSelected(item)}
-                      className="group relative block w-full overflow-hidden rounded-2xl bg-zinc-100 shadow-sm"
-                    >
-                      <div className="aspect-square relative w-full h-full">
-                        <Image
-                          src={imageUrl}
-                          alt={item.image?.alt || item.postTitle}
-                          fill
-                          className="object-cover transition duration-500 group-hover:scale-[1.03]"
-                        />
-                      </div>
-
-                      {/* Overlay text on hover */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-
-                      <div className="absolute inset-x-0 bottom-0 p-3 text-left opacity-0 transition-opacity duration-300 group-hover:opacity-100 z-10">
-                        <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-300">
-                          {[item.city, item.country].filter(Boolean).join(", ")}
-                        </div>
-                        <div className="mt-0.5 line-clamp-1 text-xs font-semibold text-white">
-                          {item.postTitle}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
+              
+              {/* Right Line */}
+              <div className="h-px flex-1 bg-zinc-200/80" />
             </div>
-          ))}
-        </div>
+
+            {/* Your Original Unaltered Grid Sizing */}
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {group.items.map((item, idx) => {
+                const imageUrl = item.image && item.image.asset
+                  ? urlForImage(item.image).width(1200).url()
+                  : null;
+
+                if (!imageUrl) return null;
+
+                return (
+                  <button
+                    key={`${item.slug}-${groupIdx}-${idx}`}
+                    type="button"
+                    onClick={() => setSelected(item)}
+                    className="group relative block w-full overflow-hidden rounded-2xl bg-zinc-100 shadow-sm"
+                  >
+                    <div className="aspect-square relative w-full h-full">
+                      <Image
+                        src={imageUrl}
+                        alt={item.image?.alt || item.postTitle}
+                        fill
+                        className="object-cover transition duration-500 group-hover:scale-[1.03]"
+                      />
+                    </div>
+
+                    {/* Overlay text on hover */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+
+                    <div className="absolute inset-x-0 bottom-0 p-3 text-left opacity-0 transition-opacity duration-300 group-hover:opacity-100 z-10">
+                      <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-300">
+                        {[item.city, item.country].filter(Boolean).join(", ")}
+                      </div>
+                      <div className="mt-0.5 line-clamp-1 text-xs font-semibold text-white">
+                        {item.postTitle}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+          </div>
+        ))}
       </div>
 
       {/* PORTAL MODAL */}
