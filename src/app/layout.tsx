@@ -1,29 +1,35 @@
 import type { Metadata } from "next";
 import "./globals.css";
+
 import { PageTransition } from "@/components/PageTransition";
 import { AmbientBackground } from "@/components/AmbientBackground";
-
+import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/react";
 
 export const metadata: Metadata = {
-  title: "A + J Travels",
+  title: "Amanda & Jovan's Travel Journal",
   description: "Travel updates, photos, and posts.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body className="min-h-screen text-[rgb(var(--text))]">
         <AmbientBackground />
 
         <div className="w-full px-2 lg:px-2">
-        <header className="pt-4 pb-1 flex justify-center">
-          <a
-            href="/"
-            className="font-semibold tracking-tight text-xl md:text-2xl hover:opacity-70 transition text-center"
-          >
-            Amanda &amp; Jovan&apos;s Travel Journal
-          </a>
-        </header>
+          <header className="pt-4 pb-1 flex justify-center">
+            <a
+              href="/"
+              className="font-semibold tracking-tight text-xl md:text-2xl hover:opacity-70 transition text-center"
+            >
+              Amanda &amp; Jovan&apos;s Travel Journal
+            </a>
+          </header>
 
           <main className="pb-20">
             <PageTransition>{children}</PageTransition>
@@ -33,6 +39,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {/* optional footer content */}
           </footer>
         </div>
+
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
