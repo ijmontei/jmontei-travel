@@ -21,7 +21,7 @@ const components = {
       alt={value?.alt || ""}
       fill
       className="object-cover"
-      sizes="100vw"
+      sizes="(max-width: 896px) 100vw, 896px"
     />
   </div>
 

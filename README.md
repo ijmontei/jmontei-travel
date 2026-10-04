@@ -31,6 +31,24 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 ## Deploy on Vercel
 
+### Photo delivery and Hobby usage
+
+All current photos use Sanity CDN URLs. `next.config.ts` selects the custom
+loader in `src/lib/sanity.image-loader.ts`, so Next Image generates responsive
+Sanity URLs instead of sending photos through Vercel's `/_next/image` endpoint.
+Sanity handles resizing, modern formats, and caching; its bandwidth allowance
+now applies to photo delivery. Existing Sanity crop parameters are preserved.
+The loader requires Sanity image URLs; use `unoptimized` for future local images
+or extend the loader deliberately for a different provider.
+
+Run the loader checks with Node 22.18+ using
+`node --test tests/sanity.image-loader.test.mjs`.
+After deploying, check the browser Network panel: photo requests should go to
+`cdn.sanity.io`, and Vercel Image Optimization Cache Writes should stop increasing
+from this site's photo components. Prior deployments and other team projects
+can still contribute usage. This change does not clear existing usage or unpause
+the team; follow the recovery date or instructions in Vercel's notification.
+
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

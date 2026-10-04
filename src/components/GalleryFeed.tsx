@@ -164,8 +164,10 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
                       src={imageUrl}
                       alt={item.image?.alt || item.postTitle}
                       fill
-                      // sizes limits Next.js rendering overhead. It tells the browser exactly what layout slice to expect.
-                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                      // Wide tiles span two columns; choose the matching responsive image.
+                      sizes={spanClasses.includes("col-span-2")
+                        ? "(max-width: 640px) 100vw, (max-width: 1024px) 67vw, 50vw"
+                        : "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"}
                       className="object-cover transition-all duration-700 ease-in-out group-hover:scale-110 group-hover:-rotate-1 group-hover:brightness-110"
                     />
 
@@ -241,6 +243,7 @@ export function GalleryFeed({ posts }: { posts: Post[] }) {
                     alt={selected.image?.alt || selected.postTitle}
                     width={2000}
                     height={2000}
+                    sizes="(max-width: 1152px) 100vw, 1152px"
                     priority // Loads current active modal target instantly
                     className="max-h-full max-w-full object-contain"
                   />
