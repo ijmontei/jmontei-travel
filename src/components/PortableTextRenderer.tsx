@@ -7,30 +7,34 @@ const components = {
     image: ({ value }: any) => {
       if (!value?.asset) return null;
 
-      const url = urlForImage(value)
+      // Body photos show the complete asset, including any areas cropped in Studio.
+      const url = urlForImage(value.asset)
         .width(1400)
         .auto("format")
         .fit("max")
         .url();
 
+      const dimensions = new URL(url).pathname.match(/-(\d+)x(\d+)\.[a-z]+$/i);
+      const width = dimensions ? Number(dimensions[1]) : 1400;
+      const height = dimensions ? Number(dimensions[2]) : 1400;
+
       return (
         <div className="my-8 overflow-hidden rounded-2xl border bg-zinc-50">
-  <div className="relative aspect-[16/10]">
-    <Image
-      src={url}
-      alt={value?.alt || ""}
-      fill
-      className="object-cover"
-      sizes="(max-width: 896px) 100vw, 896px"
-    />
-  </div>
+          <Image
+            src={url}
+            alt={value?.alt || ""}
+            width={width}
+            height={height}
+            className="h-auto w-full"
+            sizes="(max-width: 896px) 100vw, 896px"
+          />
 
-  {value?.caption && (
-    <div className="px-4 py-2 text-sm text-zinc-500">
-      {value.caption}
-    </div>
-  )}
-</div>
+          {value?.caption && (
+            <div className="px-4 py-2 text-sm text-zinc-500">
+              {value.caption}
+            </div>
+          )}
+        </div>
       );
     },
   },
