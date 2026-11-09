@@ -17,17 +17,29 @@ const components = {
       const dimensions = new URL(url).pathname.match(/-(\d+)x(\d+)\.[a-z]+$/i);
       const width = dimensions ? Number(dimensions[1]) : 1400;
       const height = dimensions ? Number(dimensions[2]) : 1400;
+      const sizes = `(max-width: 896px) min(100vw, ${75 * width / height}vh), min(896px, ${75 * width / height}vh)`;
 
       return (
         <div className="mx-auto my-8 w-fit max-w-full overflow-hidden rounded-2xl border bg-zinc-50">
-          <Image
-            src={url}
-            alt={value?.alt || ""}
-            width={width}
-            height={height}
-            className="h-auto max-h-[75vh] w-auto max-w-full object-contain"
-            sizes={`(max-width: 896px) min(100vw, ${75 * width / height}vh), min(896px, ${75 * width / height}vh)`}
-          />
+          <div className="relative isolate flex justify-center overflow-hidden bg-zinc-100">
+            {/* Reuse the foreground's responsive URL, avoiding a second image download. */}
+            <Image
+              src={url}
+              alt=""
+              aria-hidden="true"
+              fill
+              sizes={sizes}
+              className="pointer-events-none scale-110 object-cover opacity-45 blur-lg"
+            />
+            <Image
+              src={url}
+              alt={value?.alt || ""}
+              width={width}
+              height={height}
+              className="relative z-10 h-auto max-h-[75vh] w-auto max-w-full object-contain"
+              sizes={sizes}
+            />
+          </div>
 
           {value?.caption && (
             <div className="px-4 py-2 text-sm text-zinc-500">
