@@ -20,8 +20,8 @@ const components = {
       const sizes = `(max-width: 896px) min(100vw, ${75 * width / height}vh), min(896px, ${75 * width / height}vh)`;
 
       return (
-        <div className="mx-auto my-8 w-fit max-w-full overflow-hidden rounded-2xl border bg-zinc-50">
-          <div className="relative isolate flex justify-center overflow-hidden bg-zinc-100">
+        <figure className="my-10 w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm">
+          <div className="relative isolate flex items-center justify-center overflow-hidden bg-zinc-900 p-4 sm:p-6">
             {/* Reuse the foreground's responsive URL, avoiding a second image download. */}
             <Image
               src={url}
@@ -29,24 +29,25 @@ const components = {
               aria-hidden="true"
               fill
               sizes={sizes}
-              className="pointer-events-none scale-110 object-cover opacity-45 blur-lg"
+              className="pointer-events-none scale-105 object-cover opacity-60 blur-[6px]"
             />
+            <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-black/10" />
             <Image
               src={url}
               alt={value?.alt || ""}
               width={width}
               height={height}
-              className="relative z-10 h-auto max-h-[75vh] w-auto max-w-full object-contain"
+              className="relative z-10 h-auto max-h-[75vh] w-auto max-w-full rounded-lg object-contain shadow-[0_12px_40px_rgba(0,0,0,0.5)] ring-1 ring-white/70"
               sizes={sizes}
             />
           </div>
 
           {value?.caption && (
-            <div className="px-4 py-2 text-sm text-zinc-500">
+            <figcaption className="border-t border-zinc-200 bg-white px-5 py-4 text-center text-sm font-medium leading-relaxed text-zinc-800 sm:px-8 sm:text-base">
               {value.caption}
-            </div>
+            </figcaption>
           )}
-        </div>
+        </figure>
       );
     },
   },
