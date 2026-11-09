@@ -25,8 +25,8 @@ const components = {
             alt={value?.alt || ""}
             width={width}
             height={height}
-            className="h-auto max-h-[50vh] w-auto max-w-full object-contain"
-            sizes={`(max-width: 896px) min(100vw, ${50 * width / height}vh), min(896px, ${50 * width / height}vh)`}
+            className="h-auto max-h-[75vh] w-auto max-w-full object-contain"
+            sizes={`(max-width: 896px) min(100vw, ${75 * width / height}vh), min(896px, ${75 * width / height}vh)`}
           />
 
           {value?.caption && (
