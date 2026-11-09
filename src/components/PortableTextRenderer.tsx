@@ -19,14 +19,14 @@ const components = {
       const height = dimensions ? Number(dimensions[2]) : 1400;
 
       return (
-        <div className="my-8 overflow-hidden rounded-2xl border bg-zinc-50">
+        <div className="mx-auto my-8 w-fit max-w-full overflow-hidden rounded-2xl border bg-zinc-50">
           <Image
             src={url}
             alt={value?.alt || ""}
             width={width}
             height={height}
-            className="h-auto w-full"
-            sizes="(max-width: 896px) 100vw, 896px"
+            className="h-auto max-h-[50vh] w-auto max-w-full object-contain"
+            sizes={`(max-width: 896px) min(100vw, ${50 * width / height}vh), min(896px, ${50 * width / height}vh)`}
           />
 
           {value?.caption && (
